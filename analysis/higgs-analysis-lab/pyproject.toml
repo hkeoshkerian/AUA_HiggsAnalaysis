@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "higgs-analysis-lab"
+version = "0.1.0"
+description = "Modular teaching workflow derived from an ATLAS Open Data Higgs analysis"
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "numpy>=1.26,<3", "pandas>=2.2,<3", "matplotlib>=3.8,<4",
+  "scikit-learn>=1.4,<2"
+]
+
+[project.optional-dependencies]
+root = [
+  "uproot>=5,<6",
+  "awkward>=2,<3",
+  "vector>=1,<2",
+  "atlasopenmagic",
+  "requests>=2.31,<3",
+  "aiohttp>=3.9,<4"
+]
+
+boosters = [
+  "xgboost>=2,<4",
+  "lightgbm>=4,<5"
+]
+
+neural = [
+  "tensorflow>=2.16,<3"
+]
+
+ui = [
+  "streamlit>=1.40,<2"
+]
+
+all-models = [
+  "xgboost>=2,<4",
+  "lightgbm>=4,<5",
+  "tensorflow>=2.16,<3"
+]
+
+[project.scripts]
+higgs-lab = "higgs_lab.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
