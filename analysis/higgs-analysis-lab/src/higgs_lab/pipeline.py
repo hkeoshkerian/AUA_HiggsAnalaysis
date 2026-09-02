@@ -6,12 +6,15 @@ from .features import to_frame, validate_frame
 from .provenance import environment, new_output, preparation_settings, sha256, write_json
 
 def prepare(config, output):
+    import awkward as ak
     from .datasets import resolve_samples, iter_batches
     from .selection import select_events
     from .reconstruction import reconstruct_z1_z2_fast
     output = new_output(output)
     csv_path = output / "features.csv"
+    preselection_path = output / "preselection_mass.csv"
     first = True
+    first_preselection = True
     cutflows, sources = [], []
     event_number = 0
     for sample, urls in resolve_samples(config):
@@ -22,6 +25,15 @@ def prepare(config, output):
                 selected, cuts = select_events(events,config,sample["role"])
                 count = 0
                 if len(selected):
+                    preselection = pd.DataFrame({
+                        "mass": ak.to_numpy(selected["mass"]),
+                        "weight": ak.to_numpy(selected["totalWeight"]),
+                        "sample": sample["name"],
+                        "role": sample["role"],
+                    })
+                    preselection.to_csv(preselection_path, index=False,
+                        mode="w" if first_preselection else "a", header=first_preselection)
+                    first_preselection = False
                     rec = reconstruct_z1_z2_fast(selected)
                     frame = to_frame(rec,sample["name"],sample["role"])
                     count = len(frame)
@@ -36,7 +48,8 @@ def prepare(config, output):
         raise ValueError("No events survived; inspect the input and selections. No valid cache created.")
     pd.DataFrame(cutflows).groupby(["sample","stage"],sort=False,as_index=False).events.sum().to_csv(output/"cutflow.csv",index=False)
     manifest = {"schema_version":1,"settings":preparation_settings(config),"sources":sources,
-                "events":event_number,"features_sha256":sha256(csv_path),"environment":environment(),
+                "events":event_number,"features_sha256":sha256(csv_path),
+                "preselection_mass_sha256":sha256(preselection_path),"environment":environment(),
                 "energy_unit":"GeV","event_id_note":"Sequential prepared-row identifier, not a detector event number"}
     write_json(output/"manifest.json",manifest)
     return output
@@ -63,6 +76,7 @@ def run(config, prepared, output):
     systematic = config.statistics.background_fractional_systematic
     summary = {"model":config.training.model,"weighted_oof_auc":result.oof_auc,
                "threshold":config.training.threshold,"folds":result.fold_metrics,
+               "hyperparameter_tuning":result.tuning,
                "baseline":summarize_mc(frame,window,systematic,config.data.fraction),
                "after_ml":summarize_mc(selected,window,systematic,config.data.fraction),
                "warnings":["Starter workflow; not validated to reproduce original paper results.",

@@ -59,15 +59,36 @@ def optimal_threshold(scan):
     return valid.sort_values(["Z_proxy", "threshold"], ascending=[False, True]).iloc[0].to_dict()
 
 
-def _save_plots(scan, predictions, output):
+def _save_plots(scan, predictions, output, working_point=.65):
+    import matplotlib
+    matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.errorbar(scan.threshold, scan.Z_proxy, yerr=scan.sigma_Z_proxy,
-                marker="o", markersize=3, capsize=2)
-    ax.set(xlabel="Classifier threshold", ylabel="Expected MC Z proxy",
-           title="Expected significance versus threshold — OOF MC only")
-    fig.tight_layout(); fig.savefig(output/"significance_vs_threshold.png", dpi=150); plt.close(fig)
+    finite = scan.dropna(subset=["Z_proxy", "sigma_Z_proxy"])
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.axhline(5., color="green", linestyle="--", linewidth=1.5,
+               alpha=.7, label="Discovery (5σ)")
+    ax.axhline(3., color="orange", linestyle="--", linewidth=1.5,
+               alpha=.7, label="Evidence (3σ)")
+    ax.axvline(working_point, color="red", linestyle=":", linewidth=1.5,
+               alpha=.7, label=f"Optimal: {working_point:.2f}")
+    ax.errorbar(finite.threshold, finite.Z_proxy,
+                yerr=finite.sigma_Z_proxy, fmt="o-", color="blue",
+                capsize=3, capthick=1, markersize=6, linewidth=2,
+                label="Significance Z (MC)")
+    if len(finite):
+        selected = finite.iloc[(finite.threshold-working_point).abs().argmin()]
+        ax.plot(working_point, selected.Z_proxy, "o", color="red", markersize=10)
+        upper = max(float(finite.Z_proxy.max())*1.2, .5)
+    else:
+        upper = 1.
+    ax.set(xlim=(0, 1), ylim=(0, upper),
+           xlabel="BDT Score Threshold", ylabel="Significance Z (σ)",
+           title="MC Validation: Significance vs. BDT Threshold")
+    ax.grid(True, alpha=.3)
+    ax.legend(loc="upper left", fontsize=10)
+    fig.tight_layout(); fig.savefig(output/"significance_vs_threshold.png",
+                                    dpi=300, bbox_inches="tight"); plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.plot(scan.threshold, scan.signal_efficiency, label="Signal efficiency")
@@ -91,7 +112,7 @@ def _save_plots(scan, predictions, output):
 
 
 def analyze_thresholds(predictions_path, output, thresholds, mass_window,
-                       background_systematic):
+                       background_systematic, working_point=.65):
     predictions = pd.read_csv(predictions_path)
     scan = scan_thresholds(predictions, thresholds, mass_window, background_systematic)
     best = optimal_threshold(scan)
@@ -101,8 +122,9 @@ def analyze_thresholds(predictions_path, output, thresholds, mass_window,
         "selection_source": "MC out-of-fold predictions only",
         "mass_window_gev": list(mass_window),
         "background_fractional_systematic": background_systematic,
+        "working_point": working_point,
         "optimal": best,
         "warning": "Do not optimize a threshold on observed data or final test data."
     })
-    _save_plots(scan, predictions, output)
+    _save_plots(scan, predictions, output, working_point)
     return output

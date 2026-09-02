@@ -1,21 +1,22 @@
-# XGBoost experiment using the existing 1% prepared cache.
+# XGBoost experiment using the full reference-compatible prepared cache.
 [data]
 release = "2025e-13tev-beta"
 skim = "exactly4lep"
 luminosity_fb = 36.6
-fraction = 0.01
+fraction = 1.0
 step_size = "100 MB"
 weight_mode = "legacy_absolute"
 
 [selection]
 pt_min_gev = [20.0, 15.0, 10.0]
+sort_leptons_by_pt = false
 
 [training]
 model = "xgboost"
 folds = 5
 seed = 42
 threshold = 0.65
-features = ["mz1", "mz2", "ptz1", "ptz2", "pt4l", "met", "jet_n"]
+features = ["mz2", "scalar_pt_sum_z2", "dR_02", "mz1", "dR_z2", "dR_03", "pt4l", "dR_13", "dR_12", "theta2", "theta1", "pt_z1_l2", "Theta", "eta_z2_l1", "Phi1", "Phi", "eta_z1_l2", "met_phi", "jet_n", "met"]
 
 [statistics]
 mass_window_gev = [110.0, 135.0]

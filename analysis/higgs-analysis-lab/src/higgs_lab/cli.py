@@ -57,6 +57,9 @@ def main(argv=None):
     diagnostics = sub.add_parser("plot-features", help="Plot all reconstructed features")
     diagnostics.add_argument("--prepared", required=True)
     diagnostics.add_argument("--output", required=True, help="New directory; existing directories are refused")
+    preselection = sub.add_parser("plot-preselection", help="Plot Data and stacked MC before machine learning")
+    preselection.add_argument("--prepared", required=True)
+    preselection.add_argument("--output", required=True, help="New directory; existing directories are refused")
     observed = sub.add_parser("infer-observed", help="Run guarded observed-count and sideband summaries")
     observed.add_argument("--config", default="configs/default.toml")
     observed.add_argument("--predictions", required=True)
@@ -95,7 +98,8 @@ def main(argv=None):
             result = analyze_thresholds(
                 args.predictions, args.output, values,
                 config.statistics.mass_window_gev,
-                config.statistics.background_fractional_systematic)
+                config.statistics.background_fractional_systematic,
+                config.training.threshold)
             print(f"Saved {result}")
             return 0
         if args.command == "study-stability":
@@ -112,6 +116,11 @@ def main(argv=None):
         if args.command == "plot-features":
             from .diagnostics import create_diagnostics
             result = create_diagnostics(args.prepared, args.output)
+            print(f"Saved {result}")
+            return 0
+        if args.command == "plot-preselection":
+            from .preselection import plot_preselection
+            result = plot_preselection(args.prepared, args.output)
             print(f"Saved {result}")
             return 0
         if args.command == "infer-observed":

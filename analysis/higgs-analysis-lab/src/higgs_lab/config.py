@@ -26,6 +26,8 @@ class DataConfig:
 @dataclass(frozen=True)
 class SelectionConfig:
     pt_min_gev: tuple = (20.0, 15.0, 10.0)
+    # False reproduces the reference script, which indexes stored positions.
+    sort_leptons_by_pt: bool = False
 
 @dataclass(frozen=True)
 class TrainingConfig:
@@ -62,6 +64,8 @@ class Config:
             raise ValueError("weight_mode must be legacy_absolute or signed")
         if len(s.pt_min_gev) not in {3, 4} or any(not math.isfinite(v) or v < 0 for v in s.pt_min_gev):
             raise ValueError("Provide three or four finite nonnegative pT thresholds")
+        if type(s.sort_leptons_by_pt) is not bool:
+            raise ValueError("sort_leptons_by_pt must be true or false")
         if t.model not in models:
             raise ValueError(f"Supported models: {', '.join(sorted(models))}")
         if type(t.folds) is not int or t.folds < 2 or type(t.seed) is not int or not 0 <= t.seed < 2**32:

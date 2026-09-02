@@ -90,6 +90,14 @@ first fraction of each file, not a random representative sample; some classes
 may then be too small to train. Partial-sample weights remain unrescaled and
 significance output is disabled. Do not compare these counts to the paper.
 
+Preparation also writes `preselection_mass.csv` before Z-pair reconstruction.
+To reproduce the reference pre-ML mass figure (and a separate Data-overlay
+extension), run:
+
+```bash
+higgs-lab plot-preselection --prepared prepared/full --output results/preselection
+```
+
 ## 4. Train and save results
 
 Before training, you can reproduce the three feature-ranking diagnostics on a
@@ -122,6 +130,9 @@ higgs-lab compare-models \
   --prediction forest=results/forest/predictions.csv \
   --output results/model-comparison
 ```
+
+The comparison output includes `roc_all_models.png`, reproducing the reference
+weighted out-of-fold ROC overlay with bootstrap 95% AUC intervals in the legend.
 
 ```bash
 higgs-lab run --config configs/default.toml --prepared prepared/full --output results/baseline

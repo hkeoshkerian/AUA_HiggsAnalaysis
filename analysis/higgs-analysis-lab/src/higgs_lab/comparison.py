@@ -30,9 +30,10 @@ def compare_prediction_frames(frames, thresholds, mass_window=(110., 135.),
                               systematic=.30, sidebands=(90., 105., 140., 155.),
                               bootstrap_repeats=1000, seed=42, include_observed=True):
     rows, observed_rows = [], []
-    for offset, (name, frame) in enumerate(frames.items()):
+    for name, frame in frames.items():
         threshold = thresholds[name]
-        point, low, high = bootstrap_auc(frame, bootstrap_repeats, seed+offset)
+        # The reference restarts the same deterministic bootstrap for each model.
+        point, low, high = bootstrap_auc(frame, bootstrap_repeats, seed)
         scan = scan_thresholds(frame, [threshold], mass_window, systematic).iloc[0]
         rows.append({"model": name, "threshold": threshold, "weighted_oof_auc": point,
                      "auc_ci_low": low, "auc_ci_high": high,
@@ -69,19 +70,45 @@ def compare_models(prediction_paths, thresholds, output, config,
         bootstrap_repeats, config.training.seed, include_observed=config.data.fraction == 1)
     output = new_output(output)
     results.to_csv(output/"model_comparison.csv", index=False)
-    from .plots import save_classifier_metrics
+    from .plots import (save_all_model_roc, save_classifier_metrics,
+                        save_model_significance, save_observed_model_significance)
+    from .statistics import summarize_mc
     save_classifier_metrics(results, output)
-    if len(observed): observed.to_csv(output/"observed_model_comparison.csv", index=False)
+    save_all_model_roc(frames, results, output/"roc_all_models.png")
+    if len(observed):
+        observed.to_csv(output/"observed_model_comparison.csv", index=False)
+        save_observed_model_significance(
+            observed, output/"observed_significance_comparison.png")
+        retained = ["XGBoost", "LightGBM", "Random Forest", "MLP",
+                    "Logistic Regression"]
+        after = observed[(observed.stage == "after_ml") &
+                         observed.model.isin(retained)]
+        table = after.pivot(index="model", columns="method",
+                            values=["background", "Z", "sigma_Z"])
+        table = table.reindex([name for name in retained if name in table.index])
+        table.columns = [f"{method}_{metric}" for metric, method in table.columns]
+        baseline = observed[(observed.stage == "before_ml") &
+                            (observed.method == "mc_prediction")].iloc[0]
+        baseline_row = pd.DataFrame({
+            "mc_prediction_background": [baseline.background],
+            "mc_prediction_Z": [baseline.Z],
+            "mc_prediction_sigma_Z": [baseline.sigma_Z],
+            "sideband_background": [baseline.background],
+            "sideband_Z": [baseline.Z],
+            "sideband_sigma_Z": [baseline.sigma_Z]}, index=["No ML (baseline)"])
+        pd.concat([baseline_row, table]).to_csv(output/"table_vii.csv", index_label="classifier")
     _forest_plot(results, "weighted_oof_auc", "auc_ci_low", "auc_ci_high",
                  "Weighted OOF AUC (bootstrap 95% CI)", output/"auc_forest.png")
+    baseline = summarize_mc(
+        next(iter(frames.values())), config.statistics.mass_window_gev,
+        config.statistics.background_fractional_systematic, config.data.fraction)
     z = results.dropna(subset=["Z_proxy", "sigma_Z_proxy"]).copy()
-    if len(z):
-        z["z_low"] = z.Z_proxy-z.sigma_Z_proxy; z["z_high"] = z.Z_proxy+z.sigma_Z_proxy
-        _forest_plot(z, "Z_proxy", "z_low", "z_high", "Expected MC Z proxy",
-                     output/"significance_forest.png")
+    if len(z) and baseline.get("Z_proxy") is not None:
+        save_model_significance(z, baseline, output/"significance_forest.png")
     write_json(output/"comparison_summary.json", {
         "models": list(frames), "bootstrap_repeats": bootstrap_repeats,
         "observed_included": config.data.fraction == 1,
+        "no_ml_baseline": baseline,
         "warning": "Comparisons are meaningful only when runs use compatible prepared data and predefined choices."
     })
     return output

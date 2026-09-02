@@ -47,14 +47,13 @@ def select_events(events, config, role):
     for name in [n for n in KINEMATIC_BRANCHES if n.startswith("lep_") and n != "lep_n"]:
         if ak.any(ak.num(current[name], axis=1) != 4):
             raise ValueError(f"Inconsistent lepton array length: {name}")
-    # The exactly4lep skim guarantees multiplicity, but live releases need not
-    # store leptons in descending pT order. Sort every per-lepton field with the
-    # same indices so kinematics, charge, type and quality flags stay aligned.
-    order = ak.argsort(current.lep_pt, axis=1, ascending=False)
-    lepton_fields = [name for name in KINEMATIC_BRANCHES
-                      if name.startswith("lep_") and name != "lep_n"]
-    for name in lepton_fields:
-        current = ak.with_field(current, current[name][order], name)
+    if config.selection.sort_leptons_by_pt:
+        # Optional safer mode: sort every per-lepton field with identical indices.
+        order = ak.argsort(current.lep_pt, axis=1, ascending=False)
+        lepton_fields = [name for name in KINEMATIC_BRANCHES
+                          if name.startswith("lep_") and name != "lep_n"]
+        for name in lepton_fields:
+            current = ak.with_field(current, current[name][order], name)
     current = current[current.trigE | current.trigM]
     record("trigger")
     current = current[ak.sum(current.lep_isTrigMatched, axis=1) >= 1]

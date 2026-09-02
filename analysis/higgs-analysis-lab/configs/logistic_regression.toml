@@ -1,27 +1,21 @@
-# Analysis settings, NOT package installation metadata.
+# Logistic-regression experiment on the full reference-compatible cache.
 [data]
 release = "2025e-13tev-beta"
 skim = "exactly4lep"
 luminosity_fb = 36.6
 fraction = 1.0
 step_size = "100 MB"
-# Explicit compatibility choice: reproduces abs() weighting in the source.
 weight_mode = "legacy_absolute"
 
 [selection]
-# Source applies only the first three thresholds; no fourth-lepton cut is added.
 pt_min_gev = [20.0, 15.0, 10.0]
-# Reference compatibility: apply thresholds to stored lepton positions.
 sort_leptons_by_pt = false
 
 [training]
-# Logistic regression works with the core installation. XGBoost, LightGBM and
-# TensorFlow models require the optional dependencies documented in the README.
 model = "logistic_regression"
 folds = 5
 seed = 42
 threshold = 0.65
-# Reference correlation-pruned separation-power feature set (20 features).
 features = ["mz2", "scalar_pt_sum_z2", "dR_02", "mz1", "dR_z2", "dR_03", "pt4l", "dR_13", "dR_12", "theta2", "theta1", "pt_z1_l2", "Theta", "eta_z2_l1", "Phi1", "Phi", "eta_z1_l2", "met_phi", "jet_n", "met"]
 
 [statistics]

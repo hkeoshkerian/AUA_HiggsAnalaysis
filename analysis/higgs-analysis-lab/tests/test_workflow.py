@@ -18,7 +18,7 @@ from higgs_lab.pipeline import run
 from higgs_lab.feature_analysis import separation_power, rank_features, prune_correlations
 from higgs_lab.thresholds import scan_thresholds, optimal_threshold
 from higgs_lab.stability import run_stability
-from higgs_lab.plots import save_feature_plots
+from higgs_lab.plots import save_feature_plots, save_preselection_mass_plot
 from higgs_lab.inference import observed_methods
 from higgs_lab.comparison import compare_prediction_frames
 from higgs_lab.features import FEATURE_KEYS
@@ -160,8 +160,10 @@ class CoreTests(unittest.TestCase):
         frame, _ = fixture()
         with tempfile.TemporaryDirectory() as directory:
             save_feature_plots(frame, directory, ["mz1", "mz2"])
+            save_preselection_mass_plot(frame, Path(directory)/"pre_ml_m4l.png", include_data=True)
             self.assertGreater((Path(directory)/"mz1.png").stat().st_size, 0)
             self.assertGreater((Path(directory)/"signal_correlations.png").stat().st_size, 0)
+            self.assertGreater((Path(directory)/"pre_ml_m4l.png").stat().st_size, 0)
 
     def test_observed_mc_and_sideband_methods(self):
         frame, _ = fixture()
@@ -235,7 +237,9 @@ class RootTests(unittest.TestCase):
         permutation = ak.Array([[3, 0, 2, 1], [3, 0, 2, 1]])
         for name in [field for field in events.fields if field.startswith("lep_") and field != "lep_n"]:
             events = ak.with_field(events, events[name][permutation], name)
-        selected, _ = select_events(events, Config(), "data")
+        sorted_config = replace(Config(), selection=replace(
+            Config().selection, sort_leptons_by_pt=True))
+        selected, _ = select_events(events, sorted_config, "data")
         self.assertEqual(len(selected), 1)
         np.testing.assert_allclose(ak.to_numpy(selected.lep_pt[0]), [45., 40., 20., 10.])
         np.testing.assert_array_equal(ak.to_numpy(selected.lep_charge[0]), [1, -1, 1, -1])

@@ -28,9 +28,10 @@ No GUI, notebook, prepared ATLAS data or trained model binaries are included.
 
 - No import-time installation, dataset access, plotting or training.
 - Data/MC roles use explicit metadata. Data requests do not include MC-only branches.
-- Exactly-four-lepton array lengths are checked before indexing. Per-lepton fields
-  are sorted together by descending pT because the live skim does not guarantee
-  storage order; the source indexed the arrays as if already sorted.
+- Exactly-four-lepton array lengths are checked before indexing. Reference mode
+  preserves stored lepton order before positional pT cuts, matching the source.
+  Optional `sort_leptons_by_pt = true` sorts all per-lepton fields together for
+  studies that prefer an explicit ordering contract.
 - No fourth-lepton threshold is added by default. The uploaded code, unlike some
   descriptions of the analysis, only applies the first three pT thresholds.
 - Fractional entry limits are converted to integers for ROOT iteration.
