@@ -1,0 +1,45 @@
+sample,stage,events
+Data,input,1362611
+Data,exactly_four_leptons,1362611
+Data,trigger,222301
+Data,trigger_match,179866
+Data,pt_1_gt_20_GeV,115946
+Data,pt_2_gt_15_GeV,63241
+Data,pt_3_gt_10_GeV,46460
+Data,id_and_isolation,1388
+Data,flavour,1303
+Data,zero_total_charge,1279
+Data,two_sfos_pairs,1279
+"Background $Z,t\bar{t},t\bar{t}+V,VVV$",input,195814
+"Background $Z,t\bar{t},t\bar{t}+V,VVV$",exactly_four_leptons,195814
+"Background $Z,t\bar{t},t\bar{t}+V,VVV$",trigger,179875
+"Background $Z,t\bar{t},t\bar{t}+V,VVV$",trigger_match,177721
+"Background $Z,t\bar{t},t\bar{t}+V,VVV$",pt_1_gt_20_GeV,148693
+"Background $Z,t\bar{t},t\bar{t}+V,VVV$",pt_2_gt_15_GeV,109789
+"Background $Z,t\bar{t},t\bar{t}+V,VVV$",pt_3_gt_10_GeV,98597
+"Background $Z,t\bar{t},t\bar{t}+V,VVV$",id_and_isolation,10815
+"Background $Z,t\bar{t},t\bar{t}+V,VVV$",flavour,6294
+"Background $Z,t\bar{t},t\bar{t}+V,VVV$",zero_total_charge,6071
+"Background $Z,t\bar{t},t\bar{t}+V,VVV$",two_sfos_pairs,6033
+Background $ZZ^{*}$,input,11260
+Background $ZZ^{*}$,exactly_four_leptons,11260
+Background $ZZ^{*}$,trigger,10416
+Background $ZZ^{*}$,trigger_match,10308
+Background $ZZ^{*}$,pt_1_gt_20_GeV,9234
+Background $ZZ^{*}$,pt_2_gt_15_GeV,8189
+Background $ZZ^{*}$,pt_3_gt_10_GeV,7779
+Background $ZZ^{*}$,id_and_isolation,6552
+Background $ZZ^{*}$,flavour,6464
+Background $ZZ^{*}$,zero_total_charge,6365
+Background $ZZ^{*}$,two_sfos_pairs,6364
+Signal ($m_H$ = 125 GeV),input,532629
+Signal ($m_H$ = 125 GeV),exactly_four_leptons,532629
+Signal ($m_H$ = 125 GeV),trigger,488959
+Signal ($m_H$ = 125 GeV),trigger_match,482356
+Signal ($m_H$ = 125 GeV),pt_1_gt_20_GeV,384947
+Signal ($m_H$ = 125 GeV),pt_2_gt_15_GeV,316573
+Signal ($m_H$ = 125 GeV),pt_3_gt_10_GeV,288368
+Signal ($m_H$ = 125 GeV),id_and_isolation,234992
+Signal ($m_H$ = 125 GeV),flavour,230522
+Signal ($m_H$ = 125 GeV),zero_total_charge,226168
+Signal ($m_H$ = 125 GeV),two_sfos_pairs,226120
