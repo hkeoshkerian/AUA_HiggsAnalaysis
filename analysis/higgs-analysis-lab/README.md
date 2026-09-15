@@ -62,10 +62,10 @@ Edit **`configs/default.toml`** to change features, model, seed, cuts or thresho
 This is different from `pyproject.toml`, which controls package installation.
 
 Default values follow the source for luminosity (36.6 fb^-1), first three lepton
-pT thresholds (20, 15, 10 GeV), mass window [110, 135) GeV, threshold 0.65 and
-background systematic assumption 30%. The starter uses a fixed seven-feature
-subset and logistic regression; it does **not** rerun the original feature
-ranking, model tuning or full model-comparison study.
+pT thresholds (20, 15, 10 GeV), mass window [118, 130) GeV and background
+systematic assumption 30%. The ML operating point is fixed at 80% validation
+signal efficiency. Because saved scores are fold-local signal percentiles, this
+is represented by `threshold = 0.20`.
 
 ## 3. Prepare data once
 
@@ -76,7 +76,8 @@ higgs-lab prepare --config configs/default.toml --output prepared/full
 This accesses the configured ATLAS data and MC samples, applies selections,
 reconstructs the final Z variables, and saves:
 
-- `features.csv`: all 31 available features, mass, original weights and explicit sample roles.
+- `features.csv`: all 31 available features, mass, original weights, explicit sample roles,
+  and the ROOT `source_id` used for leakage-safe grouped splitting.
 - `cutflow.csv`: unweighted event counts at each selection stage, by sample.
 - `manifest.json`: data settings, source file list, checksum and environment.
 
@@ -133,6 +134,17 @@ higgs-lab compare-models \
 
 The comparison output includes `roc_all_models.png`, reproducing the reference
 weighted out-of-fold ROC overlay with bootstrap 95% AUC intervals in the legend.
+For full-data runs it also writes `observed_profile_likelihood_comparison.png`.
+This is a local one-bin Poisson profile likelihood in the configured mass window,
+with a Gaussian-constrained background nuisance. The nuisance width combines
+the method's statistical background error and configured fractional systematic
+in quadrature. It is not a fit to the full mass spectrum.
+
+The comparison also writes `selection_strategy_comparison.csv` and
+`selection_strategy_comparison.md`. These compare the historical global raw
+cut `raw_score > 0.65` against the cross-fitted 80% signal-efficiency operating
+point for every model, including OOF signal efficiency, background rejection,
+118–130 GeV signal/background yields, and expected profile-likelihood Z.
 
 ```bash
 higgs-lab run --config configs/default.toml --prepared prepared/full --output results/baseline
@@ -141,8 +153,20 @@ higgs-lab run --config configs/default.toml --prepared prepared/full --output re
 Outputs: `predictions.csv`, `summary.json`, `config.json`, `provenance.json`,
 `mass_before.png`, `mass_after.png`, `roc.png`.
 
-MC predictions are out-of-fold. Observed data are scored by the average of the
-fold models and never used for fitting, feature scaling or AUC evaluation.
+All seven model configurations use the same deterministic five-fold assignment
+(`seed = 42`). MC folds are stratified jointly by class and physics sample;
+`m4l` is not used to construct folds and is not a training feature. Every MC
+event is scored only by the model for which it was held out. Observed data are
+deterministically assigned to one fold and scored only by that fold's model—no
+fold-model averaging is used.
+
+Inside each outer training fold, a separate process-stratified validation subset
+is used for early stopping and score calibration. Raw model outputs are mapped
+to the weighted validation-signal percentile within that fold. The common 0.20
+cut therefore targets 80% signal efficiency with the same definition for every
+fold and model. Model comparison refuses prediction files whose event-to-fold
+assignments differ. The outer held-out fold and observed data are never used for
+fitting, scaling, early stopping, calibration, or tuning.
 The current summary reports **expected MC count proxies**, not observed discovery
 significances. See the scientific limitations below.
 
@@ -200,8 +224,8 @@ and choose a new directory on retry. This version does not resume failed runs.
 - Hyperparameters, features and threshold are fixed by configuration. Selecting
   them after inspecting OOF results creates selection bias; use independent
   evaluation or nested validation for such optimization.
-- Fold-averaged data scores and single-fold MC scores do not have identical
-  construction. Validate their responses before using them for observed inference.
+- Data and MC now use the same cross-fitted, fold-local score construction.
+  Residual simulation-to-data response differences still require physics validation.
 - Original sample metadata and normalization assumptions have not yet been
   validated against the remote release. Exact paper numbers are not promised.
 

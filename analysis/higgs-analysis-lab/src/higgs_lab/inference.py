@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from .provenance import new_output, write_json
-from .statistics import weighted_yield
+from .statistics import profile_likelihood_discovery, weighted_yield
 
 
 def observed_count_result(n_observed, background, sigma_background,
@@ -23,12 +23,17 @@ def observed_count_result(n_observed, background, sigma_background,
     variance = (sigma_observed**2 / denominator +
                 excess**2 * (1 + 2*k*k*background)**2 * sigma_background**2 /
                 (4*denominator**3))
+    total_background_sigma = math.hypot(sigma_background,
+                                       fractional_systematic*background)
     return {"signal_excess": excess, "Z": z, "sigma_Z": math.sqrt(variance),
             "p_value_one_sided": .5*math.erfc(z/math.sqrt(2)),
-            "status": "counting approximation; not a calibrated likelihood result"}
+            "background_constraint_sigma": total_background_sigma,
+            **profile_likelihood_discovery(
+                n_observed, background, total_background_sigma),
+            "status": "legacy counting approximation retained alongside profile likelihood"}
 
 
-def observed_methods(predictions, threshold, mass_window=(110., 135.),
+def observed_methods(predictions, threshold, mass_window=(118., 130.),
                      sidebands=(90., 105., 140., 155.), systematic=.30):
     required = {"role", "weight", "mass", "score", "score_kind"}
     missing = required - set(predictions)
@@ -38,10 +43,10 @@ def observed_methods(predictions, threshold, mass_window=(110., 135.),
     mc_background = predictions[predictions.role == "background"]
     if data.empty or mc_background.empty:
         raise ValueError("Observed inference requires data and MC background rows")
-    if not data.score_kind.eq("fold_ensemble_mean").all():
-        raise ValueError("Observed data must use fold-ensemble scores")
-    if not mc_background.score_kind.eq("out_of_fold").all():
-        raise ValueError("MC background must use out-of-fold scores")
+    if not data.score_kind.eq("fold_assigned_calibrated").all():
+        raise ValueError("Observed data must use fold-assigned calibrated scores")
+    if not mc_background.score_kind.eq("out_of_fold_calibrated").all():
+        raise ValueError("MC background must use calibrated out-of-fold scores")
     if not 0 < threshold < 1:
         raise ValueError("threshold must be in (0, 1)")
     lo, hi = mass_window
@@ -86,13 +91,23 @@ def analyze_observed(predictions_path, output, threshold, mass_window,
     from .plots import save_observed_method_comparison
     save_observed_method_comparison(results, output/"observed_method_comparison.png",
                                     threshold, mass_window)
+    from .plots import save_observed_profile_significance
+    profile_display = results.copy()
+    profile_display.insert(0, "model", "Classifier")
+    save_observed_profile_significance(
+        profile_display, output/"observed_profile_likelihood_comparison.png")
     write_json(output/"observed_summary.json", {
         "threshold": threshold, "mass_window_gev": list(mass_window),
         "sidebands_gev": list(sidebands),
         "background_fractional_systematic": systematic,
-        "results": results.where(pd.notna(results), None).to_dict(orient="records"),
+        # Convert to object dtype first; otherwise pandas keeps NaN in numeric
+        # columns even when ``None`` is supplied to ``where``.  Strict JSON
+        # serialization correctly rejects those non-finite values.
+        "results": results.astype(object).where(
+            pd.notna(results), None
+        ).to_dict(orient="records"),
         "warnings": [
             "Counting and sideband approximations are not a calibrated likelihood fit.",
-            "Fold-ensemble data scores and OOF MC scores require response validation before publication."
+            "Data and MC use the same fold-local calibration; validate residual data/MC response differences before publication."
         ]})
     return output

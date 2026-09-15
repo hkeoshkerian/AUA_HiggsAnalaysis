@@ -15,9 +15,13 @@ sort_leptons_by_pt = false
 model = "qda"
 folds = 5
 seed = 42
-threshold = 0.65
+target_signal_efficiency = 0.80
+threshold = 0.20
+group_aware = false
+group_column = "source_id"
+nested_tuning = false
 features = ["mz2", "scalar_pt_sum_z2", "dR_02", "mz1", "dR_z2", "dR_03", "pt4l", "dR_13", "dR_12", "theta2", "theta1", "pt_z1_l2", "Theta", "eta_z2_l1", "Phi1", "Phi", "eta_z1_l2", "met_phi", "jet_n", "met"]
 
 [statistics]
-mass_window_gev = [110.0, 135.0]
+mass_window_gev = [118.0, 130.0]
 background_fractional_systematic = 0.30

@@ -34,12 +34,18 @@ class TrainingConfig:
     model: str = "logistic_regression"
     folds: int = 5
     seed: int = 42
-    threshold: float = 0.65
+    # Scores are calibrated within each outer fold.  A cut at 1-efficiency
+    # therefore represents the same signal operating point in every fold.
+    target_signal_efficiency: float = 0.80
+    threshold: float = 0.20
+    group_aware: bool = False
+    group_column: str = "source_id"
+    nested_tuning: bool = False
     features: tuple = ("mz1", "mz2", "ptz1", "ptz2", "pt4l", "met", "jet_n")
 
 @dataclass(frozen=True)
 class StatisticsConfig:
-    mass_window_gev: tuple = (110.0, 135.0)
+    mass_window_gev: tuple = (118.0, 130.0)
     background_fractional_systematic: float = 0.30
 
 @dataclass(frozen=True)
@@ -72,8 +78,23 @@ class Config:
             raise ValueError("folds must be an integer >= 2 and seed an unsigned 32-bit integer")
         if not 0 < t.threshold < 1:
             raise ValueError("threshold must be in (0, 1)")
+        if not 0 < t.target_signal_efficiency < 1:
+            raise ValueError("target_signal_efficiency must be in (0, 1)")
+        if not math.isclose(t.threshold, 1 - t.target_signal_efficiency,
+                            rel_tol=0, abs_tol=1e-12):
+            raise ValueError(
+                "threshold must equal 1 - target_signal_efficiency for "
+                "fold-calibrated scores")
         if not t.features or len(set(t.features)) != len(t.features):
             raise ValueError("features must be nonempty and unique")
+        if type(t.group_aware) is not bool or type(t.nested_tuning) is not bool:
+            raise ValueError("group_aware and nested_tuning must be booleans")
+        if t.group_aware:
+            raise ValueError(
+                "group_aware source-held-out CV is not the nominal analysis; "
+                "use the fixed process-stratified cross-fitting design")
+        if not isinstance(t.group_column, str) or not t.group_column.strip():
+            raise ValueError("group_column must be a nonempty column name")
         if len(st.mass_window_gev) != 2 or not all(math.isfinite(v) for v in st.mass_window_gev) or not st.mass_window_gev[0] < st.mass_window_gev[1]:
             raise ValueError("mass_window_gev must contain finite increasing bounds")
         if not math.isfinite(st.background_fractional_systematic) or st.background_fractional_systematic < 0:

@@ -8,15 +8,15 @@ from .provenance import new_output, write_json
 from .statistics import expected_count_proxy, weighted_yield
 
 
-def scan_thresholds(predictions, thresholds, mass_window=(110.0, 135.0),
+def scan_thresholds(predictions, thresholds, mass_window=(118.0, 130.0),
                     background_systematic=.30):
     required = {"role", "label", "weight", "mass", "score", "score_kind"}
     missing = required - set(predictions)
     if missing:
         raise ValueError(f"Missing prediction columns: {sorted(missing)}")
     mc = predictions[predictions.role != "data"].copy()
-    if mc.empty or not mc.score_kind.eq("out_of_fold").all():
-        raise ValueError("Threshold selection requires MC out-of-fold predictions")
+    if mc.empty or not mc.score_kind.eq("out_of_fold_calibrated").all():
+        raise ValueError("Threshold selection requires calibrated MC out-of-fold predictions")
     numeric = mc[["label", "weight", "mass", "score"]].to_numpy(float)
     if not np.isfinite(numeric).all() or (mc.weight < 0).any():
         raise ValueError("Threshold scanning requires finite, nonnegative MC inputs")

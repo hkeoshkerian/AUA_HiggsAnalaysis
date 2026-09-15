@@ -379,7 +379,9 @@ def save_observed_model_significance(observed, path):
     colors = {"XGBoost": "#0072b2", "LightGBM": "#00a62b",
               "Random Forest": "#ff7800", "MLP": "#ed1024",
               "Logistic Regression": "#9664c8", "No ML": "black"}
-    retained = [name for name in model_order if name in set(observed.model)]
+    available = list(dict.fromkeys(observed.model.astype(str)))
+    retained = ([name for name in model_order if name in available] +
+                [name for name in available if name not in model_order])
     baseline_rows = observed[
         (observed.stage == "before_ml") &
         (observed.method == "mc_prediction")]
@@ -427,6 +429,57 @@ def save_observed_model_significance(observed, path):
     axes[0].invert_yaxis()
     fig.suptitle(r"H $\rightarrow$ ZZ* $\rightarrow$ 4$\ell$ Significance Across ML Models",
                  fontsize=19, weight="bold", y=1.02)
+    fig.tight_layout(); fig.savefig(path, dpi=300, bbox_inches="tight"); plt.close(fig)
+
+
+def save_observed_profile_significance(observed, path):
+    """Plot one-bin profile-likelihood significance for both background methods."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    model_order = ["XGBoost", "LightGBM", "Random Forest", "MLP",
+                   "Logistic Regression", "GaussianNB", "QDA"]
+    colors = {"XGBoost": "#0072b2", "LightGBM": "#00a62b",
+              "Random Forest": "#ff7800", "MLP": "#ed1024",
+              "Logistic Regression": "#9664c8", "GaussianNB": "#8c564b",
+              "QDA": "#e377c2", "No ML": "black"}
+    retained = [name for name in model_order if name in set(observed.model)]
+    names = retained + ["No ML"]
+    y = np.arange(len(names))
+    fig, axes = plt.subplots(1, 2, figsize=(16, 8), sharey=True)
+    for ax, (method, title) in zip(
+            axes, [("mc_prediction", "MC Prediction Method"),
+                   ("sideband", "Sideband Extrapolation Method")]):
+        for index, name in enumerate(retained):
+            rows = observed[(observed.model == name) &
+                            (observed.stage == "after_ml") &
+                            (observed.method == method)]
+            if rows.empty or not np.isfinite(rows.iloc[0].profile_Z):
+                continue
+            row = rows.iloc[0]
+            ax.plot(row.profile_Z, index, "o", color=colors.get(name, "#0072b2"),
+                    markersize=10)
+            ax.text(row.profile_Z+.10, index,
+                    f"Z={row.profile_Z:.2f}, p={row.profile_p_value_one_sided:.2e}",
+                    va="center", fontsize=10)
+        baseline_rows = observed[(observed.stage == "before_ml") &
+                                 (observed.method == method)]
+        if not baseline_rows.empty:
+            baseline = baseline_rows.iloc[0]
+            index = len(retained)
+            ax.plot(baseline.profile_Z, index, "o", color="black", markersize=10)
+            ax.text(baseline.profile_Z+.10, index,
+                    f"Z={baseline.profile_Z:.2f}, p={baseline.profile_p_value_one_sided:.2e}",
+                    va="center", fontsize=10)
+        ax.axvline(3, linestyle="--", color="orange", alpha=.7, label="Evidence (3σ)")
+        ax.axvline(5, linestyle="--", color="red", alpha=.7, label="Discovery (5σ)")
+        ax.set(xlim=(0, 9), xlabel="Local profile-likelihood significance Z (σ)",
+               title=title)
+        ax.grid(axis="x", alpha=.3); ax.legend(loc="lower right")
+    axes[0].set_yticks(y, names); axes[0].invert_yaxis()
+    fig.suptitle(r"$H \rightarrow ZZ^* \rightarrow 4\ell$ one-bin profile-likelihood significance",
+                 fontsize=18, weight="bold")
     fig.tight_layout(); fig.savefig(path, dpi=300, bbox_inches="tight"); plt.close(fig)
 
 def save_detailed_mass_plot(predictions, path, threshold, model_name="Classifier"):

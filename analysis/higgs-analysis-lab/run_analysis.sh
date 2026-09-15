@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 set -euo pipefail
 
 # Run this script from anywhere. Change this path if the project is moved.
@@ -82,10 +83,10 @@ else
 fi
 
 # ----------------------------------------------------------------------
-# 7. Train all seven classifiers
+# 7. Train the five retained classifiers
 #
-# Each model produces weighted out-of-fold MC predictions and fold-ensemble
-# scores for observed data.
+# Every model uses the same frozen process-stratified folds. MC is scored OOF;
+# data is fold-assigned; both raw and fold-calibrated scores are saved.
 # ----------------------------------------------------------------------
 
 run_model() {
@@ -104,8 +105,6 @@ run_model configs/lightgbm.toml            results/lightgbm
 run_model configs/random_forest.toml       results/random-forest
 run_model configs/mlp.toml                 results/mlp
 run_model configs/logistic_regression.toml results/logistic-regression
-run_model configs/gaussian_nb.toml         results/gaussian-nb
-run_model configs/qda.toml                 results/qda
 
 # ----------------------------------------------------------------------
 # 8. Compare all models and produce the combined ROC plot
@@ -113,16 +112,14 @@ run_model configs/qda.toml                 results/qda
 
 higgs-lab compare-models \
   --config configs/default.toml \
-  --prediction "XGBoost=results/xgboost-tuned/predictions.csv" \
+  --prediction "XGBoost=results/xgboost/predictions.csv" \
   --prediction "LightGBM=results/lightgbm/predictions.csv" \
   --prediction "Random Forest=results/random-forest/predictions.csv" \
   --prediction "MLP=results/mlp/predictions.csv" \
   --prediction "Logistic Regression=results/logistic-regression/predictions.csv" \
-  --prediction "GaussianNB=results/gaussian-nb/predictions.csv" \
-  --prediction "QDA=results/qda/predictions.csv" \
-  --output results/observed-all-model-comparison \
+  --output results/all-model-comparison \
   --bootstrap-repeats 1000
 
 echo
 echo "Analysis completed successfully."
-echo 
+echo "Selection comparison: results/all-model-comparison/selection_strategy_comparison.md"

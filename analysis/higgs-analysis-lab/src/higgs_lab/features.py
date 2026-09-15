@@ -10,10 +10,12 @@ FEATURE_KEYS = (
     "scalar_pt_sum_z1", "scalar_pt_sum_z2", "met", "met_phi", "jet_n"
 )
 
-def to_frame(reconstructed, sample, role):
+def to_frame(reconstructed, sample, role, source_id=None):
     frame = pd.DataFrame({key: reconstructed[key] for key in FEATURE_KEYS + ("mass",)})
     frame["weight"] = reconstructed["w"]
     frame["sample"] = sample
+    if source_id is not None:
+        frame["source_id"] = source_id
     frame["role"] = role
     frame["label"] = {"signal": 1, "background": 0, "data": -1}[role]
     return frame

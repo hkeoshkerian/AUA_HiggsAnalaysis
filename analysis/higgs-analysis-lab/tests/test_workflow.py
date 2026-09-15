@@ -12,15 +12,18 @@ import pandas as pd
 from higgs_lab.config import Config, load_config
 from higgs_lab.features import validate_frame
 from higgs_lab.provenance import preparation_settings, sha256, write_json
-from higgs_lab.statistics import weighted_yield, expected_count_proxy
-from higgs_lab.training import train_models
+from higgs_lab.statistics import (weighted_yield, expected_count_proxy,
+                                  expected_profile_likelihood,
+                                  profile_likelihood_discovery)
+from higgs_lab.training import train_models, _outer_splits
 from higgs_lab.pipeline import run
 from higgs_lab.feature_analysis import separation_power, rank_features, prune_correlations
 from higgs_lab.thresholds import scan_thresholds, optimal_threshold
 from higgs_lab.stability import run_stability
 from higgs_lab.plots import save_feature_plots, save_preselection_mass_plot
 from higgs_lab.inference import observed_methods
-from higgs_lab.comparison import compare_prediction_frames
+from higgs_lab.comparison import (compare_prediction_frames,
+                                  compare_selection_strategies)
 from higgs_lab.features import FEATURE_KEYS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,7 +53,9 @@ class CoreTests(unittest.TestCase):
         frame, _ = fixture()
         frame["score"] = np.where(frame.label == 1, .8, np.where(frame.label == 0, .2, .99))
         frame.loc[frame.label == 0, "score"] = np.r_[.6, np.full(39, .2)]
-        frame["score_kind"] = np.where(frame.role == "data", "fold_ensemble_mean", "out_of_fold")
+        frame["score_kind"] = np.where(
+            frame.role == "data", "fold_assigned_calibrated",
+            "out_of_fold_calibrated")
         scan = scan_thresholds(frame, [.1, .5, .9], (105, 140), .3)
         self.assertEqual(len(scan), 3)
         self.assertAlmostEqual(scan.loc[scan.threshold == .5, "signal_efficiency"].iloc[0], 1.)
@@ -104,6 +109,15 @@ class CoreTests(unittest.TestCase):
         self.assertAlmostEqual(result['sigma_Z_proxy'],original['sigma_Z'])
         self.assertIsNone(expected_count_proxy(12,0,2,0)['Z_proxy'])
 
+    def test_one_bin_profile_likelihood(self):
+        result = profile_likelihood_discovery(15, 10, 0)
+        expected_q0 = 2*(15*np.log(1.5)-5)
+        self.assertAlmostEqual(result["profile_q0"], expected_q0)
+        self.assertAlmostEqual(result["profile_Z"], np.sqrt(expected_q0))
+        self.assertEqual(profile_likelihood_discovery(
+            8, 10, 2)["profile_Z"], 0.)
+        self.assertGreater(expected_profile_likelihood(5, 10, 2), 0.)
+
     def test_reconstruction_body_preserved(self):
         source=ast.parse((ROOT/'reference/higgs_analysis_original.py').read_text())
         target=ast.parse((ROOT/'src/higgs_lab/reconstruction.py').read_text())
@@ -130,24 +144,85 @@ class CoreTests(unittest.TestCase):
         np.testing.assert_allclose(mc.score,second.predictions.query("role != 'data'").score)
         self.assertEqual(set(mc.fold),set(range(config.training.folds)))
         self.assertTrue(mc.score.notna().all())
-        self.assertTrue(first.predictions.query("role == 'data'").fold.eq(-1).all())
-        for fold,(scaler,_) in enumerate(first.models):
-            train=mc[mc.fold!=fold]
-            np.testing.assert_allclose(scaler.mean_,train[list(config.training.features)].mean())
+        observed = first.predictions.query("role == 'data'")
+        self.assertTrue(observed.fold.between(0, config.training.folds-1).all())
+        self.assertEqual(set(observed.score_kind), {"fold_assigned_calibrated"})
+        self.assertEqual(set(mc.score_kind), {"out_of_fold_calibrated"})
 
     def test_negative_weights_rejected(self):
         frame,config=fixture(); frame.loc[0,'weight']=-.1
         with self.assertRaisesRegex(ValueError,'Negative MC weights'): train_models(frame,config)
 
+    def test_group_aware_outer_cv_has_no_group_leakage(self):
+        # Six independent sources per class, with multiple events per source.
+        y = np.repeat(np.r_[np.zeros(6, dtype=int), np.ones(6, dtype=int)], 4)
+        groups = np.repeat([f"b{i}" for i in range(6)] +
+                           [f"s{i}" for i in range(6)], 4)
+        X = np.arange(len(y))[:, None]
+        splits = _outer_splits(X, y, groups, 3, 17, True)
+        self.assertEqual(len(splits), 3)
+        for train_idx, test_idx in splits:
+            self.assertFalse(set(groups[train_idx]) & set(groups[test_idx]))
+            self.assertEqual(set(y[test_idx]), {0, 1})
+
+    def test_group_splits_handle_highly_unequal_source_sizes(self):
+        y, groups = [], []
+        for label, prefix, sizes in ((0, "b", [6000, 2800, 800, 400, 100]),
+                                     (1, "s", [178000, 41000, 2800, 2200, 1])):
+            for index, size in enumerate(sizes):
+                y.extend([label] * size)
+                groups.extend([f"{prefix}{index}"] * size)
+        y, groups = np.asarray(y), np.asarray(groups)
+        splits = _outer_splits(np.zeros((len(y), 1)), y, groups, 5, 42, True)
+        for train_idx, test_idx in splits:
+            self.assertEqual(set(y[test_idx]), {0, 1})
+            self.assertFalse(set(groups[train_idx]) & set(groups[test_idx]))
+
+    def test_group_aware_training_requires_prepared_group_column(self):
+        frame, config = fixture()
+        config = replace(config, training=replace(
+            config.training, group_aware=True, group_column="source_id"))
+        with self.assertRaisesRegex(ValueError, "not the nominal analysis"):
+            config.validate()
+
     def test_random_forest_adapter(self):
-        frame,config=fixture(); config=replace(config,training=replace(config.training,model='random_forest',folds=2))
-        self.assertTrue(np.isfinite(train_models(frame,config).oof_auc))
+        frame,config=fixture(); config=replace(config,training=replace(config.training,model='random_forest',folds=2,nested_tuning=True))
+        result = train_models(frame,config)
+        self.assertTrue(np.isfinite(result.oof_auc))
+        self.assertEqual(len(result.tuning), 2)
+        for fold, tuning in zip(result.fold_metrics, result.tuning):
+            self.assertEqual(fold["max_depth"], tuning["best_max_depth"])
+            self.assertEqual(fold["min_samples_leaf"],
+                             tuning["best_min_samples_leaf"])
+
+    def test_nested_logistic_regression_uses_fold_selected_c(self):
+        frame, config = fixture()
+        config = replace(config, training=replace(
+            config.training, model="logistic_regression", folds=2,
+            nested_tuning=True))
+        result = train_models(frame, config)
+        self.assertEqual(len(result.tuning), 2)
+        for fold, tuning in zip(result.fold_metrics, result.tuning):
+            self.assertEqual(fold["C"], tuning["best_C"])
+            self.assertEqual(tuning["inner_folds"], 3)
 
     def test_gaussian_nb_and_qda_adapters(self):
         frame, config = fixture()
         for name in ("gaussian_nb", "qda"):
             chosen = replace(config, training=replace(config.training, model=name, folds=2))
             self.assertTrue(np.isfinite(train_models(frame, chosen).oof_auc))
+
+    def test_nested_qda_and_gaussian_nb_use_selected_parameters(self):
+        frame, config = fixture()
+        keys = {"qda": ("reg_param", "best_reg_param"),
+                "gaussian_nb": ("var_smoothing", "best_var_smoothing")}
+        for name, (fold_key, tuning_key) in keys.items():
+            chosen = replace(config, training=replace(
+                config.training, model=name, folds=2, nested_tuning=True))
+            result = train_models(frame, chosen)
+            self.assertEqual(len(result.tuning), 2)
+            for fold, tuning in zip(result.fold_metrics, result.tuning):
+                self.assertEqual(fold[fold_key], tuning[tuning_key])
 
     def test_stability_study(self):
         frame, config = fixture()
@@ -168,7 +243,9 @@ class CoreTests(unittest.TestCase):
     def test_observed_mc_and_sideband_methods(self):
         frame, _ = fixture()
         frame["score"] = np.where(frame.label == 1, .8, np.where(frame.label == 0, .2, .7))
-        frame["score_kind"] = np.where(frame.role == "data", "fold_ensemble_mean", "out_of_fold")
+        frame["score_kind"] = np.where(
+            frame.role == "data", "fold_assigned_calibrated",
+            "out_of_fold_calibrated")
         # Put observed events into both the signal region and sidebands.
         data_indices = frame.index[frame.role == "data"]
         frame.loc[data_indices, "mass"] = [112, 120, 130, 100, 102, 145, 150, 160]
@@ -176,17 +253,39 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(set(results.method), {"mc_prediction", "sideband"})
         self.assertEqual(set(results.stage), {"before_ml", "after_ml"})
         self.assertEqual(results.query("stage == 'after_ml' and method == 'sideband'").N_observed.iloc[0], 3)
+        self.assertIn("profile_Z", results)
+        self.assertTrue(results.query("stage == 'before_ml'").profile_Z.notna().all())
 
     def test_model_comparison(self):
         frame, _ = fixture()
         frame["score"] = np.where(frame.label == 1, .8, np.where(frame.label == 0, .2, .7))
-        frame["score_kind"] = np.where(frame.role == "data", "fold_ensemble_mean", "out_of_fold")
+        frame["score_kind"] = np.where(
+            frame.role == "data", "fold_assigned_calibrated",
+            "out_of_fold_calibrated")
+        frame["fold"] = np.resize(np.arange(4), len(frame))
         results, observed = compare_prediction_frames(
             {"a": frame, "b": frame.copy()}, {"a": .5, "b": .5},
             mass_window=(105, 140), bootstrap_repeats=20, include_observed=False)
         self.assertEqual(set(results.model), {"a", "b"})
         self.assertTrue((results.weighted_oof_auc == 1).all())
         self.assertTrue(observed.empty)
+
+    def test_raw_cut_vs_fixed_efficiency_table(self):
+        frame, config = fixture()
+        frame["raw_score"] = np.where(frame.label == 1, .8, .3)
+        frame["score"] = np.where(frame.label == 1, .8, .1)
+        frame["score_kind"] = np.where(
+            frame.role == "data", "fold_assigned_calibrated",
+            "out_of_fold_calibrated")
+        table = compare_selection_strategies(
+            {"test": frame}, config.training.threshold,
+            mass_window=(105, 140), systematic=.3)
+        self.assertEqual(len(table), 2)
+        self.assertEqual(set(table.selection_strategy), {
+            "global raw score > 0.65",
+            "fold-local 80% signal efficiency"})
+        self.assertTrue((table.oof_signal_efficiency == 1).all())
+        self.assertTrue((table.oof_background_rejection == 1).all())
 
     def test_pipeline_and_cache_guards(self):
         frame,config=fixture()
