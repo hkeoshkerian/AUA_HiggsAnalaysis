@@ -42,11 +42,15 @@ No GUI, notebook, prepared ATLAS data or trained model binaries are included.
   than reproducing every standalone experiment in the source. Class balancing,
   scaling, validation splits and early stopping are handled per model. Fold count
   and seeds are configurable.
-- No tuning, early stopping, threshold scan or significance optimization occurs.
-- Data is scored with the fold ensemble for inspection; observed significance is
-  not computed because the response and background procedures need validation.
-- The count formula uses explicit mass boundaries, not histogram-bin slices.
-  Its p-value conversion is omitted and the output is named `Z_proxy`.
+- Tuning, early stopping, calibrated threshold scans and nested model selection
+  are performed inside training data only; outer-fold events remain held out.
+- Data is deterministically fold-assigned and evaluated with the corresponding
+  fold model and fold-local calibration.
+- All significance outputs use explicit mass boundaries and a one-bin Poisson
+  profile likelihood. The Gaussian background constraint combines weighted-count
+  statistical uncertainty and the configured 30% systematic in quadrature.
+- Expected MC Z uses the Asimov data set. Observed Z uses the signal-window data
+  count. Displayed Z uncertainties propagate finite-count statistics numerically.
 - Partial-input significance is suppressed instead of reporting a misleading
   full-luminosity result. Weights are not silently rescaled.
 - Predictions, raw preparation settings, configuration and version metadata are
@@ -55,7 +59,7 @@ No GUI, notebook, prepared ATLAS data or trained model binaries are included.
 ## Not yet migrated
 
 Exact reproduction of every standalone cell and its historical hyperparameters;
-the original specialized composite physics figures; a calibrated likelihood fit;
+the original specialized composite physics figures; a full mass-shape likelihood;
 safe fitted-model persistence; resumable background jobs; and real-ATLAS numerical
 validation. Migrated feature selection and threshold choices use leakage-resistant
 OOF/training boundaries and therefore are not intended to reproduce numbers from

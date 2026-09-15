@@ -338,11 +338,11 @@ def save_model_significance(comparison, baseline, path):
     }
     colors = {name: cmap(reference_color_index.get(name, 0))
               for name in retained.model}
-    retained = retained.sort_values("Z_proxy", ascending=False)
+    retained = retained.sort_values("expected_profile_Z", ascending=False)
 
     names = retained.model.tolist() + ["No ML"]
-    means = retained.Z_proxy.to_list() + [baseline["Z_proxy"]]
-    errors = retained.sigma_Z_proxy.to_list() + [baseline["sigma_Z_proxy"]]
+    means = retained.expected_profile_Z.to_list() + [baseline["expected_profile_Z"]]
+    errors = retained.sigma_expected_profile_Z.to_list() + [baseline["sigma_expected_profile_Z"]]
     point_colors = [colors[name] for name in retained.model] + ["black"]
 
     fig, ax = plt.subplots(figsize=(11, 7))
@@ -351,11 +351,11 @@ def save_model_significance(comparison, baseline, path):
         ax.errorbar(z, y, xerr=error, fmt="o", color=color, capsize=5,
                     markersize=9, elinewidth=2)
     ax.set_yticks(y_positions, names, fontsize=15)
-    ax.set_xlabel("Significance Z", fontsize=18)
-    ax.set_title("Model Significance Comparison", fontsize=20, pad=15)
-    # Match the requested reference image boundaries and half-unit ticks.
-    ax.set_xlim(0, 4.14)
-    ax.set_xticks(np.arange(0, 4.01, .5))
+    ax.set_xlabel("Expected profile-likelihood significance Z", fontsize=18)
+    ax.set_title("Model Profile-Likelihood Significance Comparison", fontsize=20, pad=15)
+    upper_limit = max(4.14, max(z + error for z, error in zip(means, errors)) + .7)
+    ax.set_xlim(0, upper_limit)
+    ax.set_xticks(np.arange(0, upper_limit + .01, .5))
     ax.grid(axis="x", alpha=.3)
     ax.invert_yaxis()
     ax.tick_params(axis="x", labelsize=14)
@@ -382,12 +382,6 @@ def save_observed_model_significance(observed, path):
     available = list(dict.fromkeys(observed.model.astype(str)))
     retained = ([name for name in model_order if name in available] +
                 [name for name in available if name not in model_order])
-    baseline_rows = observed[
-        (observed.stage == "before_ml") &
-        (observed.method == "mc_prediction")]
-    if baseline_rows.empty:
-        raise ValueError("Observed comparison is missing the No-ML baseline")
-    baseline = baseline_rows.iloc[0]
     names = retained + ["No ML"]
     y = np.arange(len(names))
 
@@ -395,30 +389,35 @@ def save_observed_model_significance(observed, path):
     panels = [("mc_prediction", "MC Prediction Method"),
               ("sideband", "Sideband Extrapolation Method")]
     for ax, (method, title) in zip(axes, panels):
+        baseline_rows = observed[(observed.stage == "before_ml") &
+                                 (observed.method == method)]
+        if baseline_rows.empty:
+            raise ValueError(f"Observed comparison is missing the {method} No-ML baseline")
+        baseline = baseline_rows.iloc[0]
         for index, name in enumerate(retained):
             rows = observed[(observed.model == name) &
                             (observed.stage == "after_ml") &
                             (observed.method == method)]
             if rows.empty: continue
             row = rows.iloc[0]
-            ax.errorbar(row.Z, index, xerr=row.sigma_Z, fmt="o",
+            ax.errorbar(row.profile_Z, index, xerr=row.sigma_profile_Z, fmt="o",
                         color=colors[name], markersize=11, capsize=6,
                         elinewidth=2)
-            ax.text(row.Z + row.sigma_Z + .12, index,
-                    f"{row.Z:.2f} ± {row.sigma_Z:.2f}",
+            ax.text(row.profile_Z + row.sigma_profile_Z + .12, index,
+                    f"{row.profile_Z:.2f} ± {row.sigma_profile_Z:.2f}",
                     va="center", fontsize=11)
         index = len(retained)
-        ax.errorbar(baseline.Z, index, xerr=baseline.sigma_Z, fmt="o",
+        ax.errorbar(baseline.profile_Z, index, xerr=baseline.sigma_profile_Z, fmt="o",
                     color=colors["No ML"], markersize=11, capsize=6,
                     elinewidth=2)
-        ax.text(baseline.Z + baseline.sigma_Z + .12, index,
-                f"{baseline.Z:.2f} ± {baseline.sigma_Z:.2f}",
+        ax.text(baseline.profile_Z + baseline.sigma_profile_Z + .12, index,
+                f"{baseline.profile_Z:.2f} ± {baseline.sigma_profile_Z:.2f}",
                 va="center", fontsize=11)
         ax.axvline(3., linestyle="--", color="orange", alpha=.7,
                    linewidth=2, label="Evidence (3σ)")
         ax.axvline(5., linestyle="--", color="red", alpha=.7,
                    linewidth=2, label="Discovery (5σ)")
-        ax.set(xlim=(0, 9), xlabel="Significance Z (σ)", title=title)
+        ax.set(xlim=(0, 9), xlabel="Local profile-likelihood significance Z (σ)", title=title)
         ax.set_xticks(np.arange(0, 10, 1))
         ax.title.set_fontsize(17); ax.title.set_weight("bold")
         ax.xaxis.label.set_fontsize(15)
@@ -458,19 +457,21 @@ def save_observed_profile_significance(observed, path):
             if rows.empty or not np.isfinite(rows.iloc[0].profile_Z):
                 continue
             row = rows.iloc[0]
-            ax.plot(row.profile_Z, index, "o", color=colors.get(name, "#0072b2"),
-                    markersize=10)
-            ax.text(row.profile_Z+.10, index,
-                    f"Z={row.profile_Z:.2f}, p={row.profile_p_value_one_sided:.2e}",
+            ax.errorbar(row.profile_Z, index, xerr=row.sigma_profile_Z, fmt="o",
+                        color=colors.get(name, "#0072b2"), markersize=10,
+                        capsize=5)
+            ax.text(row.profile_Z+row.sigma_profile_Z+.10, index,
+                    f"Z={row.profile_Z:.2f} ± {row.sigma_profile_Z:.2f}, p={row.profile_p_value_one_sided:.2e}",
                     va="center", fontsize=10)
         baseline_rows = observed[(observed.stage == "before_ml") &
                                  (observed.method == method)]
         if not baseline_rows.empty:
             baseline = baseline_rows.iloc[0]
             index = len(retained)
-            ax.plot(baseline.profile_Z, index, "o", color="black", markersize=10)
-            ax.text(baseline.profile_Z+.10, index,
-                    f"Z={baseline.profile_Z:.2f}, p={baseline.profile_p_value_one_sided:.2e}",
+            ax.errorbar(baseline.profile_Z, index, xerr=baseline.sigma_profile_Z,
+                        fmt="o", color="black", markersize=10, capsize=5)
+            ax.text(baseline.profile_Z+baseline.sigma_profile_Z+.10, index,
+                    f"Z={baseline.profile_Z:.2f} ± {baseline.sigma_profile_Z:.2f}, p={baseline.profile_p_value_one_sided:.2e}",
                     va="center", fontsize=10)
         ax.axvline(3, linestyle="--", color="orange", alpha=.7, label="Evidence (3σ)")
         ax.axvline(5, linestyle="--", color="red", alpha=.7, label="Discovery (5σ)")
@@ -534,8 +535,8 @@ def save_observed_method_comparison(results, path, threshold, mass_window):
     colors = ["#fb8d8f", "#ffe04b", "#afd7c5"]
     backgrounds = np.array([row.background for row in rows], float)
     errors = np.array([row.sigma_background for row in rows], float)
-    z_values = np.array([row.Z for row in rows], float)
-    z_errors = np.array([row.sigma_Z for row in rows], float)
+    z_values = np.array([row.profile_Z for row in rows], float)
+    z_errors = np.array([row.sigma_profile_Z for row in rows], float)
     observed_no_ml, observed_ml = rows[0].N_observed, rows[1].N_observed
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
     fig.suptitle(rf"$H \rightarrow ZZ^* \rightarrow 4\ell$, $\sqrt{{s}}=13$ TeV, "
@@ -553,8 +554,9 @@ def save_observed_method_comparison(results, path, threshold, mass_window):
     bars = axes[1].bar(x, z_values, yerr=z_errors, capsize=5, color=colors, edgecolor="#444")
     axes[1].axhline(5, color="red", linestyle="--", label="Discovery (5σ)")
     axes[1].axhline(3, color="#f5a623", linestyle="--", label="Evidence (3σ)")
-    axes[1].set(xticks=x, xticklabels=labels, ylabel="Significance Z (σ)",
-                title="Significance from Different Methods")
+    axes[1].set(xticks=x, xticklabels=labels,
+                ylabel="Local profile-likelihood significance Z (σ)",
+                title="Profile-Likelihood Significance from Different Methods")
     axes[1].legend(); axes[1].grid(axis="y", alpha=.25)
     for bar, value in zip(bars, z_values):
         if np.isfinite(value): axes[1].text(bar.get_x()+bar.get_width()/2, value+.15, f"{value:.2f}", ha="center", weight="bold")

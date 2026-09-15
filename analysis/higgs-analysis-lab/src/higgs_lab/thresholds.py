@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from .provenance import new_output, write_json
-from .statistics import expected_count_proxy, weighted_yield
+from .statistics import expected_profile_result, weighted_yield
 
 
 def scan_thresholds(predictions, thresholds, mass_window=(118.0, 130.0),
@@ -35,14 +35,15 @@ def scan_thresholds(predictions, thresholds, mass_window=(118.0, 130.0),
         background = mc[(mc.label == 0) & passed]
         s, ds = weighted_yield(signal.mass, signal.weight, mass_window)
         b, db = weighted_yield(background.mass, background.weight, mass_window)
-        significance = expected_count_proxy(s, b, ds, db, background_systematic)
+        significance = expected_profile_result(s, b, ds, db, background_systematic)
         tp = mc.loc[(mc.label == 1) & passed, "weight"].sum()
         tn = mc.loc[(mc.label == 0) & ~passed, "weight"].sum()
         rows.append({
             "threshold": float(threshold), "S": s, "B": b,
             "sigma_S_mc": ds, "sigma_B_mc": db,
-            "Z_proxy": significance["Z_proxy"],
-            "sigma_Z_proxy": significance["sigma_Z_proxy"],
+            "expected_profile_Z": significance["expected_profile_Z"],
+            "sigma_expected_profile_Z": significance["sigma_expected_profile_Z"],
+            "background_constraint_sigma": significance["background_constraint_sigma"],
             "signal_efficiency": float(tp / total_signal),
             "background_rejection": float(tn / total_background),
             "weighted_accuracy": float((tp + tn) / (total_signal + total_background)),
@@ -52,11 +53,11 @@ def scan_thresholds(predictions, thresholds, mass_window=(118.0, 130.0),
 
 
 def optimal_threshold(scan):
-    valid = scan.dropna(subset=["Z_proxy"])
+    valid = scan.dropna(subset=["expected_profile_Z"])
     if valid.empty:
         return None
     # Deterministic tie-break: prefer the lower threshold.
-    return valid.sort_values(["Z_proxy", "threshold"], ascending=[False, True]).iloc[0].to_dict()
+    return valid.sort_values(["expected_profile_Z", "threshold"], ascending=[False, True]).iloc[0].to_dict()
 
 
 def _save_plots(scan, predictions, output, working_point=.65):
@@ -64,7 +65,7 @@ def _save_plots(scan, predictions, output, working_point=.65):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    finite = scan.dropna(subset=["Z_proxy", "sigma_Z_proxy"])
+    finite = scan.dropna(subset=["expected_profile_Z", "sigma_expected_profile_Z"])
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.axhline(5., color="green", linestyle="--", linewidth=1.5,
                alpha=.7, label="Discovery (5σ)")
@@ -72,19 +73,19 @@ def _save_plots(scan, predictions, output, working_point=.65):
                alpha=.7, label="Evidence (3σ)")
     ax.axvline(working_point, color="red", linestyle=":", linewidth=1.5,
                alpha=.7, label=f"Optimal: {working_point:.2f}")
-    ax.errorbar(finite.threshold, finite.Z_proxy,
-                yerr=finite.sigma_Z_proxy, fmt="o-", color="blue",
+    ax.errorbar(finite.threshold, finite.expected_profile_Z,
+                yerr=finite.sigma_expected_profile_Z, fmt="o-", color="blue",
                 capsize=3, capthick=1, markersize=6, linewidth=2,
-                label="Significance Z (MC)")
+               label="Expected profile-likelihood Z (MC)")
     if len(finite):
         selected = finite.iloc[(finite.threshold-working_point).abs().argmin()]
-        ax.plot(working_point, selected.Z_proxy, "o", color="red", markersize=10)
-        upper = max(float(finite.Z_proxy.max())*1.2, .5)
+        ax.plot(working_point, selected.expected_profile_Z, "o", color="red", markersize=10)
+        upper = max(float(finite.expected_profile_Z.max())*1.2, .5)
     else:
         upper = 1.
     ax.set(xlim=(0, 1), ylim=(0, upper),
            xlabel="BDT Score Threshold", ylabel="Significance Z (σ)",
-           title="MC Validation: Significance vs. BDT Threshold")
+           title="MC Validation: Profile-Likelihood Significance vs. BDT Threshold")
     ax.grid(True, alpha=.3)
     ax.legend(loc="upper left", fontsize=10)
     fig.tight_layout(); fig.savefig(output/"significance_vs_threshold.png",

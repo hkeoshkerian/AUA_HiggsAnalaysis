@@ -72,8 +72,10 @@ def compare_prediction_frames(frames, thresholds, mass_window=(118., 130.),
         scan = scan_thresholds(frame, [threshold], mass_window, systematic).iloc[0]
         rows.append({"model": name, "threshold": threshold, "weighted_oof_auc": point,
                      "auc_ci_low": low, "auc_ci_high": high,
-                     "S": scan.S, "B": scan.B, "Z_proxy": scan.Z_proxy,
-                     "sigma_Z_proxy": scan.sigma_Z_proxy,
+                     "S": scan.S, "B": scan.B,
+                     "expected_profile_Z": scan.expected_profile_Z,
+                     "sigma_expected_profile_Z": scan.sigma_expected_profile_Z,
+                     "background_constraint_sigma": scan.background_constraint_sigma,
                      "signal_efficiency": scan.signal_efficiency,
                      "background_rejection": scan.background_rejection,
                      "weighted_accuracy": scan.weighted_accuracy})
@@ -125,6 +127,8 @@ def compare_selection_strategies(frames, calibrated_threshold,
                 "background_constraint_sigma": summary.get(
                     "background_constraint_sigma"),
                 "expected_profile_Z": summary.get("expected_profile_Z"),
+                "sigma_expected_profile_Z": summary.get(
+                    "sigma_expected_profile_Z"),
             })
     return pd.DataFrame(rows)
 
@@ -132,9 +136,11 @@ def compare_selection_strategies(frames, calibrated_threshold,
 def _write_strategy_markdown(table, path):
     columns = ["model", "selection_strategy", "oof_signal_efficiency",
                "oof_background_rejection", "signal_yield_mass_window",
-               "background_yield_mass_window", "expected_profile_Z"]
+               "background_yield_mass_window", "expected_profile_Z",
+               "sigma_expected_profile_Z"]
     labels = ["Model", "Selection", "Signal eff.", "Bkg rejection",
-              "S (118–130)", "B (118–130)", "Expected profile Z"]
+              "S (118–130)", "B (118–130)", "Expected profile Z",
+              "Stat. error on Z"]
     lines = ["| " + " | ".join(labels) + " |",
              "|" + "|".join(["---"]*len(labels)) + "|"]
     for row in table[columns].itertuples(index=False):
@@ -186,7 +192,7 @@ def compare_models(prediction_paths, thresholds, output, config,
         after = observed[(observed.stage == "after_ml") &
                          observed.model.isin(retained)]
         table = after.pivot(index="model", columns="method",
-                            values=["background", "Z", "sigma_Z", "profile_Z",
+                            values=["background", "profile_Z", "sigma_profile_Z",
                                     "profile_p_value_one_sided"])
         table = table.reindex([name for name in retained if name in table.index])
         table.columns = [f"{method}_{metric}" for metric, method in table.columns]
@@ -196,15 +202,13 @@ def compare_models(prediction_paths, thresholds, output, config,
                                      (observed.method == "sideband")].iloc[0]
         baseline_row = pd.DataFrame({
             "mc_prediction_background": [baseline_mc.background],
-            "mc_prediction_Z": [baseline_mc.Z],
-            "mc_prediction_sigma_Z": [baseline_mc.sigma_Z],
             "mc_prediction_profile_Z": [baseline_mc.profile_Z],
+            "mc_prediction_sigma_profile_Z": [baseline_mc.sigma_profile_Z],
             "mc_prediction_profile_p_value_one_sided": [
                 baseline_mc.profile_p_value_one_sided],
             "sideband_background": [baseline_sideband.background],
-            "sideband_Z": [baseline_sideband.Z],
-            "sideband_sigma_Z": [baseline_sideband.sigma_Z],
             "sideband_profile_Z": [baseline_sideband.profile_Z],
+            "sideband_sigma_profile_Z": [baseline_sideband.sigma_profile_Z],
             "sideband_profile_p_value_one_sided": [
                 baseline_sideband.profile_p_value_one_sided]},
             index=["No ML (baseline)"])
@@ -214,8 +218,8 @@ def compare_models(prediction_paths, thresholds, output, config,
     baseline = summarize_mc(
         next(iter(frames.values())), config.statistics.mass_window_gev,
         config.statistics.background_fractional_systematic, config.data.fraction)
-    z = results.dropna(subset=["Z_proxy", "sigma_Z_proxy"]).copy()
-    if len(z) and baseline.get("Z_proxy") is not None:
+    z = results.dropna(subset=["expected_profile_Z", "sigma_expected_profile_Z"]).copy()
+    if len(z) and baseline.get("expected_profile_Z") is not None:
         save_model_significance(z, baseline, output/"significance_forest.png")
     write_json(output/"comparison_summary.json", {
         "models": list(frames), "bootstrap_repeats": bootstrap_repeats,

@@ -167,8 +167,12 @@ cut therefore targets 80% signal efficiency with the same definition for every
 fold and model. Model comparison refuses prediction files whose event-to-fold
 assignments differ. The outer held-out fold and observed data are never used for
 fitting, scaling, early stopping, calibration, or tuning.
-The current summary reports **expected MC count proxies**, not observed discovery
-significances. See the scientific limitations below.
+Every reported significance now uses the same one-bin profile-likelihood model.
+Expected MC results use the Asimov data set; observed results use the data count
+in the configured mass window. The Gaussian background constraint combines the
+weighted-count statistical uncertainty and the configured 30% background
+systematic in quadrature. Displayed Z error bars propagate finite-count
+statistics; the systematic is already included in the profiled likelihood.
 
 For a second experiment, copy the config, set `model = "random_forest"`, and use
 a new result directory. You can reuse the prepared directory if data and selection
@@ -198,7 +202,7 @@ and choose a new directory on retry. This version does not resume failed runs.
 | `src/higgs_lab/comparison.py` | Multi-model tables, bootstrap intervals and forest plots |
 | `src/higgs_lab/diagnostics.py` | All-feature distribution and correlation plots |
 | `src/higgs_lab/app.py` | Local browser working surface |
-| `src/higgs_lab/statistics.py` | Weighted yields and legacy expected-count proxy |
+| `src/higgs_lab/statistics.py` | Weighted yields and one-bin profile-likelihood calculations |
 | `src/higgs_lab/plots.py` | Reusable mass and ROC plots |
 | `src/higgs_lab/provenance.py` | Checksums, environment records and output safety |
 | `src/higgs_lab/pipeline.py` | Prepare/run orchestration |
@@ -217,10 +221,11 @@ and choose a new directory on retry. This version does not resume failed runs.
 - Reconstruction is the final function in the original source, preserved
   verbatim. Angular conventions, degenerate vectors and units still need a
   physics review and comparison against trusted events.
-- The source's approximate expected-count formula is preserved. P-values are
-  intentionally not exported, because that approximation is not a calibrated
-  significance procedure. Observed inference, sidebands and a likelihood fit
-  are pending. Do not quote this tool's output as a discovery significance.
+- Significance uses a local one-bin Poisson profile likelihood with a
+  Gaussian-constrained background nuisance. This is not an unbinned or binned
+  fit to the full mass spectrum, and it does not include a look-elsewhere
+  correction. Sideband closure and nuisance-model validation remain necessary
+  before quoting a discovery significance.
 - Hyperparameters, features and threshold are fixed by configuration. Selecting
   them after inspecting OOF results creates selection bias; use independent
   evaluation or nested validation for such optimization.

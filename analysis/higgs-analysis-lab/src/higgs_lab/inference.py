@@ -6,31 +6,35 @@ import numpy as np
 import pandas as pd
 
 from .provenance import new_output, write_json
-from .statistics import profile_likelihood_discovery, weighted_yield
+from .statistics import (_symmetric_stat_error, profile_likelihood_discovery,
+                         weighted_yield)
 
 
 def observed_count_result(n_observed, background, sigma_background,
                           fractional_systematic):
     values = [n_observed, background, sigma_background, fractional_systematic]
     if not all(math.isfinite(x) and x >= 0 for x in values) or background <= 0:
-        return {"signal_excess": None, "Z": None, "sigma_Z": None,
-                "p_value_one_sided": None, "status": "undefined: nonpositive background or invalid inputs"}
+        return {"signal_excess": None, "profile_Z": None,
+                "sigma_profile_Z": None,
+                "profile_p_value_one_sided": None,
+                "status": "undefined: nonpositive background or invalid inputs"}
     excess = n_observed - background
     sigma_observed = math.sqrt(n_observed)
-    k = fractional_systematic
-    denominator = background + (k*background)**2
-    z = excess / math.sqrt(denominator)
-    variance = (sigma_observed**2 / denominator +
-                excess**2 * (1 + 2*k*k*background)**2 * sigma_background**2 /
-                (4*denominator**3))
     total_background_sigma = math.hypot(sigma_background,
                                        fractional_systematic*background)
-    return {"signal_excess": excess, "Z": z, "sigma_Z": math.sqrt(variance),
-            "p_value_one_sided": .5*math.erfc(z/math.sqrt(2)),
+    def evaluate(n, b):
+        constraint = math.hypot(sigma_background,
+                                fractional_systematic*b)
+        return profile_likelihood_discovery(n, b, constraint)["profile_Z"]
+    profile = profile_likelihood_discovery(
+        n_observed, background, total_background_sigma)
+    return {"signal_excess": excess,
             "background_constraint_sigma": total_background_sigma,
-            **profile_likelihood_discovery(
-                n_observed, background, total_background_sigma),
-            "status": "legacy counting approximation retained alongside profile likelihood"}
+            **profile,
+            "sigma_profile_Z": _symmetric_stat_error(
+                evaluate, (n_observed, background),
+                (sigma_observed, sigma_background)),
+            "status": "one-bin profile likelihood; Z error propagates count statistics"}
 
 
 def observed_methods(predictions, threshold, mass_window=(118., 130.),
@@ -107,7 +111,8 @@ def analyze_observed(predictions_path, output, threshold, mass_window,
             pd.notna(results), None
         ).to_dict(orient="records"),
         "warnings": [
-            "Counting and sideband approximations are not a calibrated likelihood fit.",
+            "Z uses a one-bin profile likelihood; this is not a mass-shape fit.",
+            "The sideband background estimate still requires closure validation.",
             "Data and MC use the same fold-local calibration; validate residual data/MC response differences before publication."
         ]})
     return output

@@ -12,7 +12,7 @@ import pandas as pd
 from higgs_lab.config import Config, load_config
 from higgs_lab.features import validate_frame
 from higgs_lab.provenance import preparation_settings, sha256, write_json
-from higgs_lab.statistics import (weighted_yield, expected_count_proxy,
+from higgs_lab.statistics import (weighted_yield, expected_profile_result,
                                   expected_profile_likelihood,
                                   profile_likelihood_discovery)
 from higgs_lab.training import train_models, _outer_splits
@@ -93,21 +93,14 @@ class CoreTests(unittest.TestCase):
     def test_yield_window_boundaries_and_sumw2(self):
         self.assertEqual(weighted_yield([109,110,134.9,135],[9,3,4,9],(110,135)),(7.,5.))
 
-    def test_proxy_matches_source_formula(self):
-        tree=ast.parse((ROOT/'reference/higgs_analysis_original.py').read_text())
-        node=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='significance_with_uncertainty')
-        class Norm:
-            @staticmethod
-            def sf(z):
-                import math
-                return .5*math.erfc(z/2**.5)
-        scope={'np':np,'norm':Norm,'FRAC_SYST_B':.30}
-        exec(compile(ast.Module(body=[node],type_ignores=[]),'source_formula','exec'),scope)
-        original=scope['significance_with_uncertainty'](12,30,2,3)
-        result=expected_count_proxy(12,30,2,3)
-        self.assertAlmostEqual(result['Z_proxy'],original['Z'])
-        self.assertAlmostEqual(result['sigma_Z_proxy'],original['sigma_Z'])
-        self.assertIsNone(expected_count_proxy(12,0,2,0)['Z_proxy'])
+    def test_expected_profile_result_includes_systematic_and_stat_error(self):
+        result=expected_profile_result(12,30,2,3,.30)
+        constraint=np.hypot(3,.30*30)
+        self.assertAlmostEqual(result['background_constraint_sigma'],constraint)
+        self.assertAlmostEqual(result['expected_profile_Z'],
+                               expected_profile_likelihood(12,30,constraint))
+        self.assertGreater(result['sigma_expected_profile_Z'],0)
+        self.assertIsNone(expected_profile_result(12,0,2,0)['expected_profile_Z'])
 
     def test_one_bin_profile_likelihood(self):
         result = profile_likelihood_discovery(15, 10, 0)
@@ -305,7 +298,7 @@ class CoreTests(unittest.TestCase):
     def test_partial_sample_suppresses_significance(self):
         from higgs_lab.statistics import summarize_mc
         frame,_=fixture()
-        self.assertIsNone(summarize_mc(frame,(110,135),.3,fraction=.1)['Z_proxy'])
+        self.assertIsNone(summarize_mc(frame,(110,135),.3,fraction=.1)['expected_profile_Z'])
 
 @unittest.skipUnless(HAS_ROOT,'Optional ROOT dependencies unavailable in test environment')
 class RootTests(unittest.TestCase):

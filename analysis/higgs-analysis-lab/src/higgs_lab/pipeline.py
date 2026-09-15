@@ -95,8 +95,9 @@ def run(config, prepared, output):
                "after_ml":summarize_mc(selected,window,systematic,config.data.fraction),
                "warnings":["Starter workflow; not validated to reproduce original paper results.",
                            "Fixed features, hyperparameters, folds, and operating point must be chosen before evaluation.",
-                           "Z_proxy is an approximate expected MC count measure, not an observed discovery significance.",
-                           "expected_profile_Z is an Asimov one-bin profile-likelihood result, not a mass-shape likelihood.",
+                           "All reported Z values use a one-bin profile likelihood, not a mass-shape likelihood.",
+                           "The 30% background systematic is included in the profiled Gaussian background constraint.",
+                           "Displayed Z uncertainties propagate finite-count statistics; the systematic is already profiled.",
                            "MC and observed data are cross-fitted and use the same fold-local signal-efficiency calibration.",
                            "legacy_absolute weight mode reproduces source abs() convention; physics review required." if config.data.weight_mode == "legacy_absolute" else "Signed mode: training refuses negative weights."]}
     result.predictions.to_csv(output/"predictions.csv",index=False)

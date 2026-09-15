@@ -35,14 +35,15 @@ def run_stability(frame, config, seeds, folds):
                          "weighted_oof_auc": result.oof_auc,
                          "threshold": current.training.threshold,
                          "S": summary["S"], "B": summary["B"],
-                         "Z_proxy": summary["Z_proxy"]})
+                         "expected_profile_Z": summary["expected_profile_Z"],
+                         "sigma_expected_profile_Z": summary["sigma_expected_profile_Z"]})
     return pd.DataFrame(rows)
 
 
 def _plot_stability(results, output):
     import matplotlib.pyplot as plt
     for metric, ylabel in (("weighted_oof_auc", "Weighted OOF AUC"),
-                           ("Z_proxy", "Expected MC Z proxy")):
+                           ("expected_profile_Z", "Expected profile-likelihood Z")):
         fig, ax = plt.subplots(figsize=(8, 5))
         for folds, group in results.groupby("folds"):
             ordered = group.sort_values("seed")
