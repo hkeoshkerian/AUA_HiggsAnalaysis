@@ -74,6 +74,9 @@ def main(argv=None):
                             help="Optional repeat as MODEL=value; config threshold is the default")
     comparison.add_argument("--output", required=True, help="New directory; existing directories are refused")
     comparison.add_argument("--bootstrap-repeats", type=int, default=1000)
+    comparison.add_argument(
+        "--efficiencies", default="0.60,0.65,0.70,0.75,0.80,0.85,0.90",
+        help="Comma-separated common target signal efficiencies for the MC-only operating-point study")
     sub.add_parser("ui", help="Open the local browser interface")
     args = parser.parse_args(argv)
     if args.command == "doctor": return doctor(args.root)
@@ -156,9 +159,15 @@ def main(argv=None):
                 if name not in paths: raise ValueError(f"Threshold supplied for unknown model: {name}")
                 chosen[name] = value
             if args.bootstrap_repeats < 10: raise ValueError("--bootstrap-repeats must be >= 10")
+            try:
+                efficiencies = [float(value.strip()) for value in
+                                args.efficiencies.split(",") if value.strip()]
+            except ValueError as exc:
+                raise ValueError("--efficiencies must be comma-separated numbers") from exc
             from .comparison import compare_models
             result = compare_models(paths, chosen, args.output, config,
-                                    bootstrap_repeats=args.bootstrap_repeats)
+                                    bootstrap_repeats=args.bootstrap_repeats,
+                                    efficiencies=efficiencies)
             print(f"Saved {result}")
             return 0
         config = load_config(args.config)

@@ -133,6 +133,117 @@ def compare_selection_strategies(frames, calibrated_threshold,
     return pd.DataFrame(rows)
 
 
+def scan_signal_efficiencies(frames, efficiencies, mass_window=(118., 130.),
+                             systematic=.30):
+    """Evaluate common signal-quantile operating points using OOF MC only."""
+    efficiencies = np.asarray(list(efficiencies), dtype=float)
+    if (efficiencies.size == 0 or not np.isfinite(efficiencies).all()
+            or np.any((efficiencies <= 0) | (efficiencies >= 1))):
+        raise ValueError("Signal efficiencies must be finite values in (0, 1)")
+    if len(np.unique(efficiencies)) != len(efficiencies):
+        raise ValueError("Signal efficiencies must be unique")
+
+    aggregate, by_fold = [], []
+    for model, frame in frames.items():
+        mc = frame[frame.role.isin(["signal", "background"])]
+        if mc.empty or not mc.score_kind.eq("out_of_fold_calibrated").all():
+            raise ValueError(f"{model} efficiency scan requires calibrated OOF MC")
+        for target in sorted(efficiencies):
+            threshold = round(1.-float(target), 12)
+            row = scan_thresholds(
+                frame, [threshold], mass_window, systematic).iloc[0]
+            aggregate.append({
+                "model": model, "target_signal_efficiency": target,
+                "calibrated_threshold": threshold,
+                "achieved_signal_efficiency": row.signal_efficiency,
+                "background_rejection": row.background_rejection,
+                "signal_yield": row.S, "background_yield": row.B,
+                "background_constraint_sigma": row.background_constraint_sigma,
+                "expected_profile_Z": row.expected_profile_Z,
+                "sigma_expected_profile_Z": row.sigma_expected_profile_Z,
+            })
+            for fold, part in mc.groupby("fold", sort=True):
+                fold_scan = scan_thresholds(
+                    part, [threshold], mass_window, systematic).iloc[0]
+                by_fold.append({
+                    "model": model, "fold": int(fold),
+                    "target_signal_efficiency": target,
+                    "calibrated_threshold": threshold,
+                    "achieved_signal_efficiency": fold_scan.signal_efficiency,
+                    "background_rejection": fold_scan.background_rejection,
+                    "signal_yield": fold_scan.S,
+                    "background_yield": fold_scan.B,
+                    "expected_profile_Z": fold_scan.expected_profile_Z,
+                    "sigma_expected_profile_Z": fold_scan.sigma_expected_profile_Z,
+                })
+    aggregate = pd.DataFrame(aggregate)
+    by_fold = pd.DataFrame(by_fold)
+    fold_stability = by_fold.groupby(
+        ["model", "target_signal_efficiency"], as_index=False).agg(
+            fold_signal_efficiency_std=("achieved_signal_efficiency", "std"),
+            fold_background_rejection_std=("background_rejection", "std"),
+            fold_profile_Z_std=("expected_profile_Z", "std"))
+    aggregate = aggregate.merge(
+        fold_stability, on=["model", "target_signal_efficiency"], how="left")
+    summary = aggregate.groupby("target_signal_efficiency", as_index=False).agg(
+        mean_expected_profile_Z=("expected_profile_Z", "mean"),
+        model_spread_profile_Z=("expected_profile_Z", "std"),
+        mean_fold_profile_Z_std=("fold_profile_Z_std", "mean"))
+    statistical = aggregate.assign(
+        variance=lambda table: table.sigma_expected_profile_Z**2).groupby(
+            "target_signal_efficiency", as_index=False).agg(
+                summed_variance=("variance", "sum"), model_count=("model", "count"))
+    summary = summary.merge(statistical, on="target_signal_efficiency")
+    summary["sigma_mean_expected_profile_Z"] = (
+        np.sqrt(summary.summed_variance)/summary.model_count)
+    summary = summary.drop(columns=["summed_variance", "model_count"])
+    chosen = summary.sort_values(
+        ["mean_expected_profile_Z", "target_signal_efficiency"],
+        ascending=[False, True]).iloc[0]
+    return aggregate, by_fold, summary, chosen.to_dict()
+
+
+def save_efficiency_scan(aggregate, by_fold, summary, path):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10), sharex=True)
+    for model, group in aggregate.groupby("model", sort=False):
+        group = group.sort_values("target_signal_efficiency")
+        axes[0, 0].errorbar(group.target_signal_efficiency,
+                            group.expected_profile_Z,
+                            yerr=group.sigma_expected_profile_Z,
+                            marker="o", capsize=3, label=model)
+        axes[0, 1].plot(group.target_signal_efficiency,
+                        group.signal_yield, marker="o", label=f"{model} S")
+        axes[0, 1].plot(group.target_signal_efficiency,
+                        group.background_yield, marker="s", linestyle="--",
+                        label=f"{model} B")
+        axes[1, 0].plot(group.target_signal_efficiency,
+                        group.background_rejection, marker="o", label=model)
+    for (model, fold), group in by_fold.groupby(["model", "fold"], sort=False):
+        group = group.sort_values("target_signal_efficiency")
+        axes[1, 1].plot(group.target_signal_efficiency,
+                        group.expected_profile_Z, alpha=.28, linewidth=1)
+    axes[0, 0].plot(summary.target_signal_efficiency,
+                    summary.mean_expected_profile_Z, color="black", linewidth=3,
+                    marker="D", label="Across-model mean")
+    axes[0, 0].set(ylabel=r"Expected profile $Z_A$",
+                   title="Expected sensitivity (OOF MC only)")
+    axes[0, 1].set(ylabel="Weighted yield in 118–130 GeV",
+                   title="Signal and background yields")
+    axes[1, 0].set(xlabel=r"Target signal efficiency $\epsilon_S$",
+                   ylabel="Background rejection", title="Background rejection")
+    axes[1, 1].set(xlabel=r"Target signal efficiency $\epsilon_S$",
+                   ylabel=r"Fold contribution to expected $Z_A$",
+                   title="Outer-fold stability")
+    axes[0, 0].legend(fontsize=9); axes[0, 1].legend(fontsize=7, ncol=2)
+    axes[1, 0].legend(fontsize=9)
+    for ax in axes.flat: ax.grid(alpha=.25)
+    fig.suptitle("Common signal-efficiency operating-point study", weight="bold")
+    fig.tight_layout(); fig.savefig(path, dpi=250, bbox_inches="tight"); plt.close(fig)
+
+
 def _write_strategy_markdown(table, path):
     columns = ["model", "selection_strategy", "oof_signal_efficiency",
                "oof_background_rejection", "signal_yield_mass_window",
@@ -161,7 +272,8 @@ def _forest_plot(results, metric, low, high, xlabel, path):
 
 
 def compare_models(prediction_paths, thresholds, output, config,
-                   sidebands=(90., 105., 140., 155.), bootstrap_repeats=1000):
+                   sidebands=(90., 105., 140., 155.), bootstrap_repeats=1000,
+                   efficiencies=(.60, .65, .70, .75, .80, .85, .90)):
     frames = {name: pd.read_csv(path) for name, path in prediction_paths.items()}
     results, observed = compare_prediction_frames(
         frames, thresholds, config.statistics.mass_window_gev,
@@ -176,6 +288,24 @@ def compare_models(prediction_paths, thresholds, output, config,
     strategies.to_csv(output/"selection_strategy_comparison.csv", index=False)
     _write_strategy_markdown(
         strategies, output/"selection_strategy_comparison.md")
+    efficiency_scan, efficiency_folds, efficiency_summary, chosen_efficiency = (
+        scan_signal_efficiencies(
+            frames, efficiencies, config.statistics.mass_window_gev,
+            config.statistics.background_fractional_systematic))
+    efficiency_scan.to_csv(output/"signal_efficiency_scan.csv", index=False)
+    efficiency_folds.to_csv(output/"signal_efficiency_scan_by_fold.csv", index=False)
+    efficiency_summary.to_csv(output/"signal_efficiency_scan_summary.csv", index=False)
+    save_efficiency_scan(
+        efficiency_scan, efficiency_folds, efficiency_summary,
+        output/"signal_efficiency_scan.png")
+    write_json(output/"chosen_signal_efficiency.json", {
+        "selection_source": "calibrated out-of-fold MC predictions only",
+        "candidate_efficiencies": list(map(float, efficiencies)),
+        "selection_rule": "maximize the across-model mean expected Asimov one-bin profile-likelihood Z; ties prefer lower efficiency",
+        "chosen": chosen_efficiency,
+        "observed_data_used": False,
+        "warning": "Treat the chosen point as established only if the scan and fold diagnostics show a stable sensitivity plateau."
+    })
     from .plots import (save_all_model_roc, save_classifier_metrics,
                         save_model_significance, save_observed_model_significance,
                         save_observed_profile_significance)

@@ -23,7 +23,8 @@ from higgs_lab.stability import run_stability
 from higgs_lab.plots import save_feature_plots, save_preselection_mass_plot
 from higgs_lab.inference import observed_methods
 from higgs_lab.comparison import (compare_prediction_frames,
-                                  compare_selection_strategies)
+                                  compare_selection_strategies,
+                                  scan_signal_efficiencies)
 from higgs_lab.features import FEATURE_KEYS
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -279,6 +280,23 @@ class CoreTests(unittest.TestCase):
             "fold-local 80% signal efficiency"})
         self.assertTrue((table.oof_signal_efficiency == 1).all())
         self.assertTrue((table.oof_background_rejection == 1).all())
+
+    def test_signal_efficiency_scan_is_oof_mc_only(self):
+        frame, _ = fixture()
+        frame["score"] = np.where(frame.label == 1, .8,
+                                  np.where(frame.label == 0, .2, .99))
+        frame["score_kind"] = np.where(
+            frame.role == "data", "fold_assigned_calibrated",
+            "out_of_fold_calibrated")
+        frame["fold"] = np.resize(np.arange(4), len(frame))
+        aggregate, folds, summary, chosen = scan_signal_efficiencies(
+            {"test": frame}, [.6, .8], mass_window=(105, 140), systematic=.3)
+        self.assertEqual(len(aggregate), 2)
+        self.assertEqual(set(folds.fold), {0, 1, 2, 3})
+        self.assertEqual(set(summary.target_signal_efficiency), {.6, .8})
+        self.assertIn(chosen["target_signal_efficiency"], {.6, .8})
+        self.assertTrue(aggregate.background_rejection.between(0, 1).all())
+        self.assertTrue(aggregate.expected_profile_Z.notna().all())
 
     def test_pipeline_and_cache_guards(self):
         frame,config=fixture()

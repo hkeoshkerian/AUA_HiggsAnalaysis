@@ -146,6 +146,17 @@ cut `raw_score > 0.65` against the cross-fitted 80% signal-efficiency operating
 point for every model, including OOF signal efficiency, background rejection,
 118–130 GeV signal/background yields, and expected profile-likelihood Z.
 
+It also performs an observed-data-blind common operating-point study at target
+signal efficiencies 60%, 65%, 70%, 75%, 80%, 85% and 90%. The outputs
+`signal_efficiency_scan.csv`, `signal_efficiency_scan_by_fold.csv`,
+`signal_efficiency_scan_summary.csv`, `signal_efficiency_scan.png` and
+`chosen_signal_efficiency.json` report expected Asimov profile Z with propagated
+MC statistical uncertainty, signal/background yields, background rejection and
+outer-fold stability. The deterministic selection rule maximizes the
+across-model mean expected profile Z using calibrated OOF MC only; observed data
+are never consulted. A selected point should be adopted only when the fold plots
+also demonstrate a stable sensitivity plateau.
+
 ```bash
 higgs-lab run --config configs/default.toml --prepared prepared/full --output results/baseline
 ```
