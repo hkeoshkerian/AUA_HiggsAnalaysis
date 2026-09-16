@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Run this script from anywhere. Change this path if the project is moved.
-PROJECT_DIR="/Users/hourykeoshkerian/AUA_HiggsAnalaysis/analysis/higgs-analysis-lab"
+# Run this script from anywhere. Write the path of your project directory here such as: 
+# PROJECT_DIR="/Users/hourykeoshkerian/AUA_HiggsAnalaysis/analysis/higgs-analysis-lab"
+PROJECT_DIR=""
 
 cd "$PROJECT_DIR"
 
