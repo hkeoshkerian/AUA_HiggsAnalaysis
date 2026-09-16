@@ -46,6 +46,11 @@ fi
 # ----------------------------------------------------------------------
 # 4. Produce the preselection Data-versus-MC m4l plots
 # ----------------------------------------------------------------------
+if [[ ! -d "results" ]]; then
+    mkdir results
+else
+    echo "Skipping existing results folder creation"
+fi
 
 if [[ ! -d "results/reference-preselection" ]]; then
     higgs-lab plot-preselection \
