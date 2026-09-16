@@ -6,6 +6,5 @@ __pycache__/
 build/
 dist/
 *.egg-info/
-prepared/
 results/
 *.root
