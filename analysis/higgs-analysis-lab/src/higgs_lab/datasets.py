@@ -1,4 +1,6 @@
 """Network I/O is explicit; no download or environment changes at import time."""
+import time
+
 from .samples import SAMPLES
 
 def resolve_samples(config):
@@ -10,9 +12,23 @@ def resolve_samples(config):
 
 def iter_batches(url, config, role):
     import uproot
-    from .selection import KINEMATIC_BRANCHES, WEIGHT_BRANCHES
-    branches = KINEMATIC_BRANCHES + ([] if role == "data" else WEIGHT_BRANCHES + ["sum_of_weights"])
-    with uproot.open(url) as root_file:
+    from .selection import required_branches, WEIGHT_BRANCHES
+    branches = required_branches(config) + ([] if role == "data" else WEIGHT_BRANCHES + ["sum_of_weights"])
+    root_file = None
+    for attempt in range(1, 4):
+        try:
+            root_file = uproot.open(url)
+            break
+        except Exception as error:
+            if attempt == 3:
+                raise
+            print(
+                f"Transient input failure ({type(error).__name__}); "
+                f"retrying file {attempt}/3",
+                flush=True,
+            )
+            time.sleep(2 * attempt)
+    with root_file:
         tree = root_file["analysis"]
         missing = set(branches) - set(tree.keys())
         if missing:

@@ -1,0 +1,49 @@
+sample,stage,events
+Data,input,1515848
+Data,at_least_four_leptons,1515848
+Data,single_di_trilepton_trigger,639274
+Data,trigger_match,202523
+Data,lepton_acceptance_id_isolation_impact,2272
+Data,two_sfos_pairs,2005
+Data,leading_lepton_pt,1839
+Data,z_pair_masses,1370
+Data,lepton_separation,1332
+Data,jpsi_veto,1323
+Data,m4l_80_250_GeV,870
+Data,reconstructed_events,870
+Reducible/other background,input,242731
+Reducible/other background,at_least_four_leptons,242731
+Reducible/other background,single_di_trilepton_trigger,231499
+Reducible/other background,trigger_match,222918
+Reducible/other background,lepton_acceptance_id_isolation_impact,40650
+Reducible/other background,two_sfos_pairs,27221
+Reducible/other background,leading_lepton_pt,27076
+Reducible/other background,z_pair_masses,23189
+Reducible/other background,lepton_separation,23142
+Reducible/other background,jpsi_veto,23137
+Reducible/other background,m4l_80_250_GeV,9883
+Reducible/other background,reconstructed_events,9883
+Irreducible $ZZ^{*}$,input,17089
+Irreducible $ZZ^{*}$,at_least_four_leptons,17089
+Irreducible $ZZ^{*}$,single_di_trilepton_trigger,16514
+Irreducible $ZZ^{*}$,trigger_match,15817
+Irreducible $ZZ^{*}$,lepton_acceptance_id_isolation_impact,12794
+Irreducible $ZZ^{*}$,two_sfos_pairs,12329
+Irreducible $ZZ^{*}$,leading_lepton_pt,11973
+Irreducible $ZZ^{*}$,z_pair_masses,10094
+Irreducible $ZZ^{*}$,lepton_separation,10090
+Irreducible $ZZ^{*}$,jpsi_veto,10072
+Irreducible $ZZ^{*}$,m4l_80_250_GeV,5713
+Irreducible $ZZ^{*}$,reconstructed_events,5713
+SM Higgs ($m_H=125$ GeV),input,615483
+SM Higgs ($m_H=125$ GeV),at_least_four_leptons,615483
+SM Higgs ($m_H=125$ GeV),single_di_trilepton_trigger,598168
+SM Higgs ($m_H=125$ GeV),trigger_match,560562
+SM Higgs ($m_H=125$ GeV),lepton_acceptance_id_isolation_impact,460132
+SM Higgs ($m_H=125$ GeV),two_sfos_pairs,436160
+SM Higgs ($m_H=125$ GeV),leading_lepton_pt,426887
+SM Higgs ($m_H=125$ GeV),z_pair_masses,393671
+SM Higgs ($m_H=125$ GeV),lepton_separation,393405
+SM Higgs ($m_H=125$ GeV),jpsi_veto,392966
+SM Higgs ($m_H=125$ GeV),m4l_80_250_GeV,389866
+SM Higgs ($m_H=125$ GeV),reconstructed_events,389866

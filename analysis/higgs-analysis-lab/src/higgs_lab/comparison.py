@@ -195,7 +195,8 @@ def scan_signal_efficiencies(frames, efficiencies, mass_window=(118., 130.),
                 summed_variance=("variance", "sum"), model_count=("model", "count"))
     summary = summary.merge(statistical, on="target_signal_efficiency")
     summary["sigma_mean_expected_profile_Z"] = (
-        np.sqrt(summary.summed_variance)/summary.model_count)
+        np.sqrt(summary.summed_variance.astype(float)) /
+        summary.model_count.astype(float))
     summary = summary.drop(columns=["summed_variance", "model_count"])
     chosen = summary.sort_values(
         ["mean_expected_profile_Z", "target_signal_efficiency"],

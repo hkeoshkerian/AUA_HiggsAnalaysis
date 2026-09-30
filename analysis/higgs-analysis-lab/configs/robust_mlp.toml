@@ -1,0 +1,29 @@
+[data]
+release = "2025e-13tev-beta"
+skim = "4lep"
+luminosity_fb = 36.1
+fraction = 1.0
+step_size = "100 MB"
+weight_mode = "legacy_absolute"
+[selection]
+mode = "atlas_2017_fiducial"
+pt_min_gev = [20.0, 15.0, 10.0]
+sort_leptons_by_pt = true
+track_isolation_max = 0.15
+electron_calo_isolation_max = 0.20
+muon_calo_isolation_max = 0.30
+retained_mass_range_gev = [80.0, 250.0]
+[training]
+model = "mlp"
+folds = 5
+seed = 42
+target_signal_efficiency = 0.80
+threshold = 0.20
+group_aware = false
+group_column = "source_id"
+nested_tuning = false
+mass_window_only = true
+features = ["dR_z2", "Phi1", "eta_z1_l2", "Phi", "theta1", "theta2", "met_phi", "eta_z2_l1", "Theta"]
+[statistics]
+mass_window_gev = [115.0, 130.0]
+background_fractional_systematic = 0.30

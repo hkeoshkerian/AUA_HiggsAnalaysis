@@ -25,9 +25,14 @@ class DataConfig:
 
 @dataclass(frozen=True)
 class SelectionConfig:
+    mode: str = "reference"
     pt_min_gev: tuple = (20.0, 15.0, 10.0)
     # False reproduces the reference script, which indexes stored positions.
     sort_leptons_by_pt: bool = False
+    track_isolation_max: float = 0.15
+    electron_calo_isolation_max: float = 0.20
+    muon_calo_isolation_max: float = 0.30
+    retained_mass_range_gev: tuple = (0.0, 1_000_000.0)
 
 @dataclass(frozen=True)
 class TrainingConfig:
@@ -41,6 +46,9 @@ class TrainingConfig:
     group_aware: bool = False
     group_column: str = "source_id"
     nested_tuning: bool = False
+    # Restrict both MC training and observed scoring to the configured
+    # statistics mass window.  This is the nominal H->ZZ* workflow.
+    mass_window_only: bool = False
     features: tuple = ("mz1", "mz2", "ptz1", "ptz2", "pt4l", "met", "jet_n")
 
 @dataclass(frozen=True)
@@ -64,14 +72,24 @@ class Config:
             raise ValueError("luminosity_fb must be positive and finite")
         if not 0 < d.fraction <= 1:
             raise ValueError("fraction must be in (0, 1]")
-        if d.skim != "exactly4lep":
-            raise ValueError("This starter supports only the exactly4lep skim")
+        if d.skim not in {"exactly4lep", "4lep"}:
+            raise ValueError("skim must be exactly4lep or 4lep")
         if d.weight_mode not in {"legacy_absolute", "signed"}:
             raise ValueError("weight_mode must be legacy_absolute or signed")
         if len(s.pt_min_gev) not in {3, 4} or any(not math.isfinite(v) or v < 0 for v in s.pt_min_gev):
             raise ValueError("Provide three or four finite nonnegative pT thresholds")
         if type(s.sort_leptons_by_pt) is not bool:
             raise ValueError("sort_leptons_by_pt must be true or false")
+        if s.mode not in {"reference", "atlas_2017_fiducial"}:
+            raise ValueError("selection mode must be reference or atlas_2017_fiducial")
+        isolation_values = (s.track_isolation_max, s.electron_calo_isolation_max,
+                            s.muon_calo_isolation_max)
+        if any(not math.isfinite(value) or value <= 0 for value in isolation_values):
+            raise ValueError("isolation thresholds must be positive and finite")
+        if (len(s.retained_mass_range_gev) != 2 or
+                not all(math.isfinite(v) for v in s.retained_mass_range_gev) or
+                not s.retained_mass_range_gev[0] < s.retained_mass_range_gev[1]):
+            raise ValueError("retained_mass_range_gev must contain finite increasing bounds")
         if t.model not in models:
             raise ValueError(f"Supported models: {', '.join(sorted(models))}")
         if type(t.folds) is not int or t.folds < 2 or type(t.seed) is not int or not 0 <= t.seed < 2**32:
@@ -87,8 +105,11 @@ class Config:
                 "fold-calibrated scores")
         if not t.features or len(set(t.features)) != len(t.features):
             raise ValueError("features must be nonempty and unique")
-        if type(t.group_aware) is not bool or type(t.nested_tuning) is not bool:
-            raise ValueError("group_aware and nested_tuning must be booleans")
+        if (type(t.group_aware) is not bool or
+                type(t.nested_tuning) is not bool or
+                type(t.mass_window_only) is not bool):
+            raise ValueError(
+                "group_aware, nested_tuning and mass_window_only must be booleans")
         if t.group_aware:
             raise ValueError(
                 "group_aware source-held-out CV is not the nominal analysis; "

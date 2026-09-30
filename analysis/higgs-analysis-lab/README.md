@@ -1,269 +1,101 @@
-# Higgs Analysis Lab — first modular version
+# Higgs Analysis Lab
 
-A student-oriented Python package derived from `higgs_analysis(1).py`.
-**This is a first migration, not a validated reproduction of the paper or a browser app.**
-The complete original script remains unchanged in `reference/`.
+This repository's primary workflow trains four classifiers and performs a
+binned profile-likelihood analysis of the four-lepton invariant mass in
+`115 <= m4l < 130 GeV`.
 
-## 1. Install once
-
-Use Python **3.11 or 3.12**. Open Terminal in the extracted `higgs-analysis-lab` folder.
-Do not run these commands from inside the Python prompt.
+## Environment
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install .
-higgs-lab doctor
-```
-
-On Windows use `py -3.12 -m venv .venv`, then `.venv\Scripts\Activate.ps1`
-in PowerShell instead of the first two commands above.
-
-`pyproject.toml` describes installation; you do not execute it directly.
-The default install supports prepared CSV data, logistic regression and random forest.
-No installer runs during analysis and no global Python environment is modified.
-
-For raw ROOT data preparation, additionally install:
-
-```bash
-python -m pip install ".[root]"
+python -m pip install -e ".[root,boosters,neural]"
 higgs-lab doctor --root
 ```
 
-This optional extra includes uproot, awkward, vector and atlasopenmagic.
-The package uses HTTPS and does not directly require xrootd or TensorFlow.
-Optional packages may have their own dependencies. Remote access and the selected
-ATLAS release must be checked on the target machine; see `docs/TESTING.md`.
+## Authoritative preparation
 
-For the boosted-tree models, install:
+The primary configuration is `configs/atlas_2017_legacy_absolute.toml`. It uses:
 
-```bash
-python -m pip install ".[boosters]"
-```
+- the inclusive ATLAS Open Data `4lep` skim;
+- 36.1 fb^-1;
+- the ATLAS-2017-like four-lepton fiducial selection;
+- the legacy absolute event-weight convention required for this reproduction;
+- the full retained mass range for diagnostic plots and a separately reported
+  `115–130 GeV` yield.
 
-For the TensorFlow MLP, install `".[neural]"`. To install every model backend,
-use `".[all-models]"`.
-
-For the local browser interface, install and launch:
+Prepare once:
 
 ```bash
-python -m pip install ".[ui]"
-higgs-lab ui
+higgs-lab prepare \
+  --config configs/atlas_2017_legacy_absolute.toml \
+  --output prepared/atlas-2017-36p1-legacy-absolute
 ```
 
-## 2. Check the analysis settings
+The current prepared sample has, in `115 <= m4l < 130 GeV`, 63 data events,
+38.069 weighted signal events, and 32.599 weighted background events (21.112
+irreducible and 11.486 reducible/rare).
+
+## Primary training and inference
+
+Run the complete analysis:
 
 ```bash
-higgs-lab check-config --config configs/default.toml
+./run_primary_analysis.sh
 ```
 
-Edit **`configs/default.toml`** to change features, model, seed, cuts or threshold.
-This is different from `pyproject.toml`, which controls package installation.
-
-Default values follow the source for luminosity (36.6 fb^-1), first three lepton
-pT thresholds (20, 15, 10 GeV), mass window [118, 130) GeV and background
-systematic assumption 30%. The ML operating point is fixed at 80% validation
-signal efficiency. Because saved scores are fold-local signal percentiles, this
-is represented by `threshold = 0.20`.
-
-## 3. Prepare data once
+An alternative prepared-data or output location may be supplied:
 
 ```bash
-higgs-lab prepare --config configs/default.toml --output prepared/full
+./run_primary_analysis.sh PREPARED_DIRECTORY OUTPUT_DIRECTORY
 ```
 
-This accesses the configured ATLAS data and MC samples, applies selections,
-reconstructs the final Z variables, and saves:
+The analysis is fixed as follows:
 
-- `features.csv`: all 31 available features, mass, original weights, explicit sample roles,
-  and the ROOT `source_id` used for leakage-safe grouped splitting.
-- `cutflow.csv`: unweighted event counts at each selection stage, by sample.
-- `manifest.json`: data settings, source file list, checksum and environment.
+- models: XGBoost, LightGBM, Random Forest, and MLP;
+- features: the same nine mass-decorrelated variables in every model;
+- training population: signal and background MC within `115–130 GeV` only;
+- validation: the same deterministic five-fold, class-and-process-stratified
+  out-of-fold assignment for every model;
+- calibration: fitted within each training fold, never on its held-out fold;
+- operating point: a model-specific threshold giving the closest attainable
+  value to 80% weighted OOF signal efficiency, derived using MC only (ties at
+  the weighted quantile are included);
+- inference category: score-pass only; observed data never enter training or
+  threshold selection;
+- likelihood observable: `m4l` in three 5 GeV bins over `[115,130)`;
+- nuisance model: per-bin MC statistical uncertainties plus one correlated 30%
+  background-normalization uncertainty;
+- reported results: expected and observed local discovery significance,
+  one-sided p-value, fitted signal strength, and 68%/95% profile intervals;
+- quoted statistical error on significance: 1,000 statistical repetitions.
 
-The prepared CSV is a deliberate simple interchange format. No data is bundled
-with this project. ROOT files are read in chunks, though the ML stage loads the
-prepared feature table into memory. Full processing can take substantial time
-and requires network access. There is no reliable runtime estimate yet.
+The main outputs are under `results/primary-analysis/profile-likelihood/`:
 
-For a quick plumbing check, reduce `fraction`, e.g. to `0.01`. It selects the
-first fraction of each file, not a random representative sample; some classes
-may then be too small to train. Partial-sample weights remain unrescaled and
-significance output is disabled. Do not compare these counts to the paper.
+- `primary_score_pass_inference.csv`;
+- `primary_operating_points.csv`;
+- `primary_expected_significance_forest.png`;
+- `primary_observed_significance_forest.png`;
+- `primary_signal_strength_forest.png`;
+- one mass-fit and likelihood-scan plot per model;
+- `primary_inference_method.json`, the machine-readable method record.
 
-Preparation also writes `preselection_mass.csv` before Z-pair reconstruction.
-To reproduce the reference pre-ML mass figure (and a separate Data-overlay
-extension), run:
+The No-ML row is the inclusive mass-only reference. Logistic Regression,
+sideband extrapolation, score-fail inference, transfer-factor models, global
+raw-score cuts, and alternative fit windows are not part of this primary path.
+
+## Verification
 
 ```bash
-higgs-lab plot-preselection --prepared prepared/full --output results/preselection
+MPLCONFIGDIR=/tmp/higgs-mpl \
+  .venv/bin/python -m unittest discover -s tests -v
 ```
 
-## 4. Train and save results
+The configuration and tests enforce the common skim, luminosity, selection,
+features, mass window, fold design, and profile-likelihood settings.
 
-Before training, you can reproduce the three feature-ranking diagnostics on a
-verified prepared dataset:
+## Scope
 
-```bash
-higgs-lab analyze-features --prepared prepared/full --output results/feature-study
-```
-
-This writes `feature_ranking.csv`, `correlation_pruning.csv`,
-`feature_analysis.json`, and one plot for each ranking method. Ranking and
-correlation pruning use only a stratified MC training split. Review the result
-before copying a selected feature list into the configuration; the command does
-not silently modify an experiment configuration.
-
-Additional reproducible studies operate on saved prepared data or predictions:
-
-```bash
-higgs-lab plot-features --prepared prepared/full --output results/feature-plots
-higgs-lab scan-thresholds --predictions results/baseline/predictions.csv --output results/thresholds
-higgs-lab study-stability --prepared prepared/full --output results/stability
-higgs-lab infer-observed --predictions results/baseline/predictions.csv --output results/observed
-```
-
-Compare several completed model runs with repeated `MODEL=PATH` arguments:
-
-```bash
-higgs-lab compare-models \
-  --prediction logistic=results/logistic/predictions.csv \
-  --prediction forest=results/forest/predictions.csv \
-  --output results/model-comparison
-```
-
-The comparison output includes `roc_all_models.png`, reproducing the reference
-weighted out-of-fold ROC overlay with bootstrap 95% AUC intervals in the legend.
-For full-data runs it also writes `observed_profile_likelihood_comparison.png`.
-This is a local one-bin Poisson profile likelihood in the configured mass window,
-with a Gaussian-constrained background nuisance. The nuisance width combines
-the method's statistical background error and configured fractional systematic
-in quadrature. It is not a fit to the full mass spectrum.
-
-The comparison also writes `selection_strategy_comparison.csv` and
-`selection_strategy_comparison.md`. These compare the historical global raw
-cut `raw_score > 0.65` against the cross-fitted 80% signal-efficiency operating
-point for every model, including OOF signal efficiency, background rejection,
-118–130 GeV signal/background yields, and expected profile-likelihood Z.
-
-It also performs an observed-data-blind common operating-point study at target
-signal efficiencies 60%, 65%, 70%, 75%, 80%, 85% and 90%. The outputs
-`signal_efficiency_scan.csv`, `signal_efficiency_scan_by_fold.csv`,
-`signal_efficiency_scan_summary.csv`, `signal_efficiency_scan.png` and
-`chosen_signal_efficiency.json` report expected Asimov profile Z with propagated
-MC statistical uncertainty, signal/background yields, background rejection and
-outer-fold stability. The deterministic selection rule maximizes the
-across-model mean expected profile Z using calibrated OOF MC only; observed data
-are never consulted. A selected point should be adopted only when the fold plots
-also demonstrate a stable sensitivity plateau.
-
-```bash
-higgs-lab run --config configs/default.toml --prepared prepared/full --output results/baseline
-```
-
-Outputs: `predictions.csv`, `summary.json`, `config.json`, `provenance.json`,
-`mass_before.png`, `mass_after.png`, `roc.png`.
-
-All seven model configurations use the same deterministic five-fold assignment
-(`seed = 42`). MC folds are stratified jointly by class and physics sample;
-`m4l` is not used to construct folds and is not a training feature. Every MC
-event is scored only by the model for which it was held out. Observed data are
-deterministically assigned to one fold and scored only by that fold's model—no
-fold-model averaging is used.
-
-Inside each outer training fold, a separate process-stratified validation subset
-is used for early stopping and score calibration. Raw model outputs are mapped
-to the weighted validation-signal percentile within that fold. The common 0.20
-cut therefore targets 80% signal efficiency with the same definition for every
-fold and model. Model comparison refuses prediction files whose event-to-fold
-assignments differ. The outer held-out fold and observed data are never used for
-fitting, scaling, early stopping, calibration, or tuning.
-Every reported significance now uses the same one-bin profile-likelihood model.
-Expected MC results use the Asimov data set; observed results use the data count
-in the configured mass window. The Gaussian background constraint combines the
-weighted-count statistical uncertainty and the configured 30% background
-systematic in quadrature. Displayed Z error bars propagate finite-count
-statistics; the systematic is already included in the profiled likelihood.
-
-For a second experiment, copy the config, set `model = "random_forest"`, and use
-a new result directory. You can reuse the prepared directory if data and selection
-settings are unchanged. Changing cuts or luminosity requires preparing a new cache.
-Existing output directories are refused to prevent overwriting earlier runs.
-
-If a run fails, its output directory may be incomplete. Retain it for diagnosis
-and choose a new directory on retry. This version does not resume failed runs.
-
-## Files and responsibilities
-
-| File | Responsibility |
-|---|---|
-| `pyproject.toml` | Installation metadata, dependencies and terminal command |
-| `configs/default.toml` | Analysis settings |
-| `src/higgs_lab/config.py` | Configuration loading and validation |
-| `src/higgs_lab/samples.py` | Original sample IDs and explicit physics roles |
-| `src/higgs_lab/datasets.py` | Dataset resolution and chunked ROOT reading |
-| `src/higgs_lab/selection.py` | Cuts and event weights |
-| `src/higgs_lab/reconstruction.py` | Original final Z reconstruction and angles |
-| `src/higgs_lab/features.py` | Feature table and data/MC separation checks |
-| `src/higgs_lab/feature_analysis.py` | Training-only ranking and correlation pruning |
-| `src/higgs_lab/training.py` | Common OOF cross-validation for seven model adapters |
-| `src/higgs_lab/thresholds.py` | MC-only threshold scans and diagnostics |
-| `src/higgs_lab/stability.py` | Seed and fold-count studies |
-| `src/higgs_lab/inference.py` | Guarded observed-count and sideband summaries |
-| `src/higgs_lab/comparison.py` | Multi-model tables, bootstrap intervals and forest plots |
-| `src/higgs_lab/diagnostics.py` | All-feature distribution and correlation plots |
-| `src/higgs_lab/app.py` | Local browser working surface |
-| `src/higgs_lab/statistics.py` | Weighted yields and one-bin profile-likelihood calculations |
-| `src/higgs_lab/plots.py` | Reusable mass and ROC plots |
-| `src/higgs_lab/provenance.py` | Checksums, environment records and output safety |
-| `src/higgs_lab/pipeline.py` | Prepare/run orchestration |
-| `src/higgs_lab/cli.py` | Terminal commands and environment checks |
-| `tests/test_workflow.py` | Synthetic-data regression and integration tests |
-| `reference/higgs_analysis_original.py` | Unchanged original research script; not the entry point |
-| `docs/MIGRATION.md` | Preserved behavior, intentional changes and pending work |
-| `docs/TESTING.md` | Verification performed and its limits |
-
-## Scientific limitations
-
-- `legacy_absolute` preserves the source's `abs()` multiplication of MC weight
-  factors. It is explicitly labelled, not endorsed as the correct signed-MC
-  treatment. `signed` preserves signs; training refuses negative weights until
-  a reviewed ML weighting policy is supplied.
-- Reconstruction is the final function in the original source, preserved
-  verbatim. Angular conventions, degenerate vectors and units still need a
-  physics review and comparison against trusted events.
-- Significance uses a local one-bin Poisson profile likelihood with a
-  Gaussian-constrained background nuisance. This is not an unbinned or binned
-  fit to the full mass spectrum, and it does not include a look-elsewhere
-  correction. Sideband closure and nuisance-model validation remain necessary
-  before quoting a discovery significance.
-- Hyperparameters, features and threshold are fixed by configuration. Selecting
-  them after inspecting OOF results creates selection bias; use independent
-  evaluation or nested validation for such optimization.
-- Data and MC now use the same cross-fitted, fold-local score construction.
-  Residual simulation-to-data response differences still require physics validation.
-- Original sample metadata and normalization assumptions have not yet been
-  validated against the remote release. Exact paper numbers are not promised.
-
-## Tests
-
-```bash
-python -m unittest discover -s tests -v
-```
-
-ROOT tests skip when optional dependencies are unavailable. Synthetic tests prove
-software behavior, not physical validity or reproduction of the paper.
-
-## Next migration steps
-
-1. Validate raw processing and reference yields on real ATLAS input.
-2. Review weights, units, selection and angular conventions with the supervisor.
-3. Validate all migrated model adapters and diagnostics against the original
-   standalone experiments on fixed real input.
-4. Replace approximate counting/sideband summaries with a reviewed likelihood
-   model before making scientific claims.
-5. Add safe model persistence and a resumable job layer for long-running UI work.
-
-Dependency ranges in `pyproject.toml` are not a lock file. The tested core-version
-constraints are supplied separately; a complete platform-specific lock including
-ROOT dependencies should be generated only after clean-install validation.
+This is an educational Open Data reproduction, not the full ATLAS statistical
+model. The 30% background uncertainty is an explicit analysis assumption, not
+a substitute for the complete experimental and theoretical nuisance model.

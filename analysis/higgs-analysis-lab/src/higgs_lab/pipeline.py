@@ -2,6 +2,7 @@
 import json
 from pathlib import Path
 from urllib.parse import urlparse
+import numpy as np
 import pandas as pd
 from .features import to_frame, validate_frame
 from .provenance import environment, new_output, preparation_settings, sha256, write_json
@@ -28,11 +29,19 @@ def prepare(config, output):
                 selected, cuts = select_events(events,config,sample["role"])
                 count = 0
                 if len(selected):
+                    selected_types = ak.to_numpy(selected["lep_type"])
+                    channel = np.select(
+                        [(selected_types[:,0] == 13) & (selected_types[:,2] == 13),
+                         (selected_types[:,0] == 11) & (selected_types[:,2] == 11),
+                         (selected_types[:,0] == 11) & (selected_types[:,2] == 13),
+                         (selected_types[:,0] == 13) & (selected_types[:,2] == 11)],
+                        ["4mu", "4e", "2e2mu", "2mu2e"], default="unknown")
                     preselection = pd.DataFrame({
                         "mass": ak.to_numpy(selected["mass"]),
                         "weight": ak.to_numpy(selected["totalWeight"]),
                         "sample": sample["name"],
                         "role": sample["role"],
+                        "channel": channel,
                     })
                     preselection.to_csv(preselection_path, index=False,
                         mode="w" if first_preselection else "a", header=first_preselection)
@@ -45,7 +54,7 @@ def prepare(config, output):
                         event_number += count
                         frame.to_csv(csv_path,index=False,mode="w" if first else "a",header=first)
                         first = False
-                cuts.append({"stage":"two_sfos_pairs","events":count})
+                cuts.append({"stage":"reconstructed_events","events":count})
                 cutflows.extend(dict(sample=sample["name"],**row) for row in cuts)
     if first:
         raise ValueError("No events survived; inspect the input and selections. No valid cache created.")
@@ -60,7 +69,7 @@ def prepare(config, output):
     return output
 
 def run(config, prepared, output):
-    from .training import train_models
+    from .training import train_models, _weighted_quantile
     from .statistics import summarize_mc
     from .plots import save_mass_plot, save_roc_plot, save_detailed_mass_plot
     prepared = Path(prepared)
@@ -74,13 +83,26 @@ def run(config, prepared, output):
         raise ValueError("Prepared feature checksum mismatch")
     frame = pd.read_csv(csv_path)
     validate_frame(frame,config.training.features)
+    if config.training.mass_window_only:
+        low, high = config.statistics.mass_window_gev
+        frame = frame[(frame.mass >= low) & (frame.mass < high)].copy()
+        if frame.empty or set(frame.role) != {"signal", "background", "data"}:
+            raise ValueError(
+                "Configured training mass window must contain signal, background and data")
     output = new_output(output)
     result = train_models(frame,config)
-    selected = result.predictions[result.predictions.score > config.training.threshold]
     window = config.statistics.mass_window_gev
+    threshold = config.training.threshold
+    if config.training.mass_window_only:
+        signal = result.predictions[result.predictions.role == "signal"]
+        quantile = _weighted_quantile(
+            signal.score.to_numpy(float), signal.weight.to_numpy(float),
+            1-config.training.target_signal_efficiency)
+        threshold = float(np.nextafter(quantile, -np.inf))
+    selected = result.predictions[result.predictions.score > threshold]
     systematic = config.statistics.background_fractional_systematic
     summary = {"model":config.training.model,"weighted_oof_auc":result.oof_auc,
-               "threshold":config.training.threshold,"folds":result.fold_metrics,
+               "threshold":threshold,"folds":result.fold_metrics,
                "hyperparameter_tuning":result.tuning,
                "evaluation_design":{
                    "outer_cv":"frozen StratifiedKFold over class and physics process",
@@ -90,6 +112,9 @@ def run(config, prepared, output):
                    "target_signal_efficiency":config.training.target_signal_efficiency,
                    "nested_tuning":config.training.nested_tuning,
                    "test_fold_used_for_tuning":False,
+                   "training_mass_window_gev": (
+                       list(config.statistics.mass_window_gev)
+                       if config.training.mass_window_only else None),
                },
                "baseline":summarize_mc(frame,window,systematic,config.data.fraction),
                "after_ml":summarize_mc(selected,window,systematic,config.data.fraction),
@@ -108,5 +133,5 @@ def run(config, prepared, output):
     save_mass_plot(selected,output/"mass_after.png","After ML — starter workflow")
     save_roc_plot(result.predictions,output/"roc.png")
     save_detailed_mass_plot(result.predictions, output/"real_data_m4l.png",
-                            config.training.threshold, config.training.model)
+                            threshold, config.training.model)
     return output

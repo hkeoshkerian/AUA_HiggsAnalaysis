@@ -27,12 +27,22 @@ def plot_preselection(prepared, output):
     if not frame.role.isin(["signal", "background", "data"]).all():
         raise ValueError("Unknown sample role")
     output = new_output(output)
-    save_preselection_mass_plot(frame, output/"m4l_reference_preselection.png", include_data=False)
-    save_preselection_mass_plot(frame, output/"m4l_data_mc.png", include_data=True)
+    data_settings = manifest.get("settings", {}).get("data", {})
+    selection_settings = manifest.get("settings", {}).get("selection", {})
+    selection_mode = selection_settings.get("mode", "reference")
+    luminosity = float(data_settings.get("luminosity_fb", 36.6))
+    mass_range = tuple(selection_settings.get("retained_mass_range_gev", (80.0, 250.0)))
+    if selection_mode != "atlas_2017_fiducial": mass_range = (80.0, 250.0)
+    save_preselection_mass_plot(frame, output/"m4l_reference_preselection.png",
+                                include_data=False, luminosity_fb=luminosity,
+                                mass_range=mass_range)
+    save_preselection_mass_plot(frame, output/"m4l_data_mc.png",
+                                include_data=True, luminosity_fb=luminosity,
+                                mass_range=mass_range)
     write_json(output/"preselection_plot.json", {
         "source": str(prepared),
         "events": len(frame),
-        "binning_gev": {"minimum": 80.0, "maximum": 250.0, "width": 2.5},
+        "binning_gev": {"minimum": mass_range[0], "maximum": mass_range[1], "width": 2.5},
         "stage": "after event selection and reconstruction; before machine learning"
     })
     return output

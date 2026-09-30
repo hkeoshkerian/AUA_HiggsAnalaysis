@@ -16,9 +16,11 @@ def create_diagnostics(prepared, output):
     frame = pd.read_csv(csv_path)
     validate_frame(frame, FEATURE_KEYS)
     output = new_output(output)
-    save_feature_plots(frame, output, FEATURE_KEYS)
+    luminosity = float(manifest.get("settings", {}).get("data", {}).get("luminosity_fb", 36.6))
+    save_feature_plots(frame, output, FEATURE_KEYS, include_data=True,
+                       luminosity_fb=luminosity)
     write_json(output/"diagnostics.json", {
         "features": list(FEATURE_KEYS), "plots": len(FEATURE_KEYS) + 1,
-        "note": "MC histograms use physical event weights; correlation uses signal events."
+        "note": "MC histograms use physical event weights; data are overlaid with Poisson errors; correlation uses signal events."
     })
     return output

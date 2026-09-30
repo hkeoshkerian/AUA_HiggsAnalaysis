@@ -57,8 +57,9 @@ def save_all_model_roc(frames, results, path):
     ax.grid()
     fig.tight_layout(); fig.savefig(path, dpi=150); plt.close(fig)
 
-def save_feature_plots(frame, output, features):
-    """Save reference-style, MC-only kinematics and signal correlations."""
+def save_feature_plots(frame, output, features, include_data=False,
+                       luminosity_fb=36.6):
+    """Save reference-style kinematics and signal correlations."""
     from pathlib import Path
     import matplotlib
     matplotlib.use("Agg")
@@ -69,6 +70,7 @@ def save_feature_plots(frame, output, features):
     mc = frame[frame.role != "data"]
     backgrounds = mc[mc.role == "background"]
     signal = mc[mc.role == "signal"]
+    data = frame[frame.role == "data"]
 
     def background_parts():
         # Preserve the reference order: minor backgrounds first, then ZZ*.
@@ -101,6 +103,12 @@ def save_feature_plots(frame, output, features):
             ax.hist(transform(signal[feature].to_numpy(float)), bins=bins,
                     weights=signal.weight.to_numpy(float), bottom=background_total,
                     color="#11bce5", label=r"Signal ($m_H$ = 125 GeV)")
+        if include_data and len(data):
+            observed = np.histogram(transform(data[feature].to_numpy(float)), bins=bins)[0]
+            centers = (bins[:-1] + bins[1:]) / 2
+            ax.errorbar(centers, observed, yerr=np.sqrt(observed), fmt="o",
+                        color="black", markersize=3.5, linewidth=1,
+                        label="Data", zorder=10)
         ax.set_xlim(bins[0], bins[-1]); ax.set_ylim(bottom=0)
         ax.set_xlabel(xlabel, fontsize=12, x=1, horizontalalignment="right")
         ax.set_ylabel(ylabel, fontsize=11, y=1, horizontalalignment="right")
@@ -112,6 +120,7 @@ def save_feature_plots(frame, output, features):
         def legend_rank(label):
             if "Signal" in label: return 2
             if "Stat." in label: return 3
+            if label == "Data": return 4
             if "ZZ" in label: return 1
             return 0
         ordered = sorted(zip(handles, legend_labels), key=lambda item: legend_rank(item[1]))
@@ -165,7 +174,7 @@ def save_feature_plots(frame, output, features):
         ("pt_z2_l2", r"$Z_2$ subleading lepton", r"$p_T^{Z_2,\,\ell_2}$ [GeV]"),
     ], (2, 2),
         r"$H \rightarrow ZZ^* \rightarrow 4\ell$ — Lepton $p_T$    "
-        r"$\sqrt{s}=13$ TeV, $\int L\,dt=36.6$ fb$^{-1}$",
+        rf"$\sqrt{{s}}=13$ TeV, $\int L\,dt={luminosity_fb:g}$ fb$^{{-1}}$",
         np.arange(0, 153, 3), "Events / 3.0 GeV")
 
     panel_figure("lepton_eta_2x2.png", [
@@ -175,7 +184,7 @@ def save_feature_plots(frame, output, features):
         ("eta_z2_l2", r"$Z_2$ subleading lepton", r"$\eta^{Z_2,\,\ell_2}$"),
     ], (2, 2),
         r"$H \rightarrow ZZ^* \rightarrow 4\ell$ — Lepton $\eta$    "
-        r"$\sqrt{s}=13$ TeV, $\int L\,dt=36.6$ fb$^{-1}$",
+        rf"$\sqrt{{s}}=13$ TeV, $\int L\,dt={luminosity_fb:g}$ fb$^{{-1}}$",
         np.arange(-3, 3.2, .2), "Events / 0.2")
 
     panel_figure("helicity_angles.png", [
@@ -233,12 +242,13 @@ def save_feature_plots(frame, output, features):
     fig.colorbar(image, ax=ax, fraction=.046, pad=.04)
     fig.tight_layout(); fig.savefig(output/"signal_correlations.png", dpi=200); plt.close(fig)
 
-def save_preselection_mass_plot(frame, path, include_data=False):
+def save_preselection_mass_plot(frame, path, include_data=False, luminosity_fb=36.6,
+                                mass_range=(80.0, 250.0)):
     """Reference-style m4l distribution before any ML cut."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    bins = np.arange(80, 252.5, 2.5); centers = (bins[:-1]+bins[1:])/2
+    bins = np.arange(mass_range[0], mass_range[1]+2.5, 2.5); centers = (bins[:-1]+bins[1:])/2
     background = frame[frame.role == "background"]
     groups = [(name, group) for name, group in background.groupby("sample", sort=False)]
     arrays = [group.mass.to_numpy() for _, group in groups]
@@ -263,7 +273,7 @@ def save_preselection_mass_plot(frame, path, include_data=False):
         counts = np.histogram(observed.mass, bins=bins)[0]
         ax.errorbar(centers, counts, yerr=np.sqrt(counts), fmt="o", color="black",
                     markersize=4, label="Data", zorder=6)
-    ax.set(xlim=(80, 250), ylim=(0, None),
+    ax.set(xlim=mass_range, ylim=(0, None),
            xlabel=r"4-lepton invariant mass $m_{4\ell}$ [GeV]",
            ylabel="Events / 2.5 GeV",
            title="")
@@ -271,7 +281,7 @@ def save_preselection_mass_plot(frame, path, include_data=False):
             fontsize=17, va="top")
     ax.text(.10, .905, "for education", transform=ax.transAxes,
             fontsize=12, va="top", style="italic")
-    ax.text(.10, .845, r"$\sqrt{s}=13$ TeV, $\int L\,dt=36.6$ fb$^{-1}$",
+    ax.text(.10, .845, rf"$\sqrt{{s}}=13$ TeV, $\int L\,dt={luminosity_fb:g}$ fb$^{{-1}}$",
             transform=ax.transAxes, fontsize=14, va="top")
     ax.text(.10, .785, r"$H \rightarrow ZZ^* \rightarrow 4\ell$",
             transform=ax.transAxes, fontsize=15, va="top")

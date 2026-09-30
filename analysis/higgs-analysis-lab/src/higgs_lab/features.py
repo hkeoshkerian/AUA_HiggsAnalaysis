@@ -13,6 +13,15 @@ FEATURE_KEYS = (
 def to_frame(reconstructed, sample, role, source_id=None):
     frame = pd.DataFrame({key: reconstructed[key] for key in FEATURE_KEYS + ("mass",)})
     frame["weight"] = reconstructed["w"]
+    if "type_z1_l1" in reconstructed and "type_z2_l1" in reconstructed:
+        z1_type = reconstructed["type_z1_l1"]
+        z2_type = reconstructed["type_z2_l1"]
+        frame["channel"] = np.select(
+            [(z1_type == 13) & (z2_type == 13),
+             (z1_type == 11) & (z2_type == 11),
+             (z1_type == 11) & (z2_type == 13),
+             (z1_type == 13) & (z2_type == 11)],
+            ["4mu", "4e", "2e2mu", "2mu2e"], default="unknown")
     frame["sample"] = sample
     if source_id is not None:
         frame["source_id"] = source_id

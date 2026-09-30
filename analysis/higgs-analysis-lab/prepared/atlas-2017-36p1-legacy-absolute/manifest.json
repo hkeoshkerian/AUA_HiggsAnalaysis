@@ -1,0 +1,304 @@
+{
+  "schema_version": 1,
+  "settings": {
+    "data": {
+      "release": "2025e-13tev-beta",
+      "skim": "4lep",
+      "luminosity_fb": 36.1,
+      "fraction": 1.0,
+      "step_size": "100 MB",
+      "weight_mode": "legacy_absolute"
+    },
+    "selection": {
+      "mode": "atlas_2017_fiducial",
+      "pt_min_gev": [
+        20.0,
+        15.0,
+        10.0
+      ],
+      "sort_leptons_by_pt": true,
+      "track_isolation_max": 0.15,
+      "electron_calo_isolation_max": 0.2,
+      "muon_calo_isolation_max": 0.3,
+      "retained_mass_range_gev": [
+        80.0,
+        250.0
+      ]
+    }
+  },
+  "sources": [
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data15_periodD.4lep.root"
+    },
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data15_periodE.4lep.root"
+    },
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data15_periodF.4lep.root"
+    },
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data15_periodG.4lep.root"
+    },
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data15_periodH.4lep.root"
+    },
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data15_periodJ.4lep.root"
+    },
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data16_periodA.4lep.root"
+    },
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data16_periodB.4lep.root"
+    },
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data16_periodC.4lep.root"
+    },
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data16_periodD.4lep.root"
+    },
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data16_periodE.4lep.root"
+    },
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data16_periodF.4lep.root"
+    },
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data16_periodG.4lep.root"
+    },
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data16_periodI.4lep.root"
+    },
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data16_periodK.4lep.root"
+    },
+    {
+      "sample": "Data",
+      "role": "data",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_data16_periodL.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_410470.PhPy8EG_A14_ttbar_hdamp258p75_nonallhad.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_410155.aMcAtNloPythia8EvtGen_MEN30NLO_A14N23LO_ttW.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_410218.aMcAtNloPythia8EvtGen_MEN30NLO_A14N23LO_ttee.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_410219.aMcAtNloPythia8EvtGen_MEN30NLO_A14N23LO_ttmumu.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_410220.aMcAtNloPythia8EvtGen_MEN30NLO_A14N23LO_tttautau.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_410408.aMcAtNloPythia8EvtGen_tWZ_Ztoll_minDR1.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_412043.aMcAtNloPythia8EvtGen_A14NNPDF31_SM4topsNLO.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_364242.Sherpa_222_NNPDF30NNLO_WWW_3l3v_EW6.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_364243.Sherpa_222_NNPDF30NNLO_WWZ_4l2v_EW6.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_364245.Sherpa_222_NNPDF30NNLO_WZZ_5l1v_EW6.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_364246.Sherpa_222_NNPDF30NNLO_WZZ_3l3v_EW6.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_364247.Sherpa_222_NNPDF30NNLO_ZZZ_6l0v_EW6.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_364248.Sherpa_222_NNPDF30NNLO_ZZZ_4l2v_EW6.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_700601.Sh_2212_lllv.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_700320.Sh_2211_Zee_maxHTpTV2_BFilter.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_700321.Sh_2211_Zee_maxHTpTV2_CFilterBVeto.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_700322.Sh_2211_Zee_maxHTpTV2_CVetoBVeto.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_700323.Sh_2211_Zmumu_maxHTpTV2_BFilter.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_700324.Sh_2211_Zmumu_maxHTpTV2_CFilterBVeto.4lep.root"
+    },
+    {
+      "sample": "Reducible/other background",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_700325.Sh_2211_Zmumu_maxHTpTV2_CVetoBVeto.4lep.root"
+    },
+    {
+      "sample": "Irreducible $ZZ^{*}$",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_700600.Sh_2212_llll.4lep.root"
+    },
+    {
+      "sample": "Irreducible $ZZ^{*}$",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_700587.Sh_2212_lllljj.4lep.root"
+    },
+    {
+      "sample": "Irreducible $ZZ^{*}$",
+      "role": "background",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_700591.Sh_2212_lllljj_Int.4lep.root"
+    },
+    {
+      "sample": "SM Higgs ($m_H=125$ GeV)",
+      "role": "signal",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_345060.PowhegPythia8EvtGen_NNLOPS_nnlo_30_ggH125_ZZ4l.4lep.root"
+    },
+    {
+      "sample": "SM Higgs ($m_H=125$ GeV)",
+      "role": "signal",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_346228.PowhegPy8EG_NNPDF30_AZNLOCTEQ6L1_VBFH125_ZZ4lep_notau.4lep.root"
+    },
+    {
+      "sample": "SM Higgs ($m_H=125$ GeV)",
+      "role": "signal",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_345066.PowhegPythia8EvtGen_NNPDF3_AZNLO_ggZH125_ZZ4lepZinc.4lep.root"
+    },
+    {
+      "sample": "SM Higgs ($m_H=125$ GeV)",
+      "role": "signal",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_346645.PowhegPythia8EvtGen_NNPDF30_AZNLO_ZH125J_Zincl_MINLO_shw.4lep.root"
+    },
+    {
+      "sample": "SM Higgs ($m_H=125$ GeV)",
+      "role": "signal",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_346646.PowhegPythia8EvtGen_NNPDF30_AZNLO_WpH125J_Wincl_MINLO_shw.4lep.root"
+    },
+    {
+      "sample": "SM Higgs ($m_H=125$ GeV)",
+      "role": "signal",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_346647.PowhegPythia8EvtGen_NNPDF30_AZNLO_WmH125J_Wincl_MINLO_shw.4lep.root"
+    },
+    {
+      "sample": "SM Higgs ($m_H=125$ GeV)",
+      "role": "signal",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_346340.PowhegPy8EG_A14NNPDF23_NNPDF30ME_ttH125_ZZ4l_allhad.4lep.root"
+    },
+    {
+      "sample": "SM Higgs ($m_H=125$ GeV)",
+      "role": "signal",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_346341.PowhegPy8EG_A14NNPDF23_NNPDF30ME_ttH125_ZZ4l_semilep.4lep.root"
+    },
+    {
+      "sample": "SM Higgs ($m_H=125$ GeV)",
+      "role": "signal",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_346342.PowhegPy8EG_A14NNPDF23_NNPDF30ME_ttH125_ZZ4l_dilep.4lep.root"
+    },
+    {
+      "sample": "SM Higgs ($m_H=125$ GeV)",
+      "role": "signal",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_346414.aMcAtNloPythia8EvtGen_tHjb125_4fl_ZZ4l.4lep.root"
+    },
+    {
+      "sample": "SM Higgs ($m_H=125$ GeV)",
+      "role": "signal",
+      "url": "simplecache::https://opendata.cern.ch/eos/opendata/atlas/rucio/opendata/ODEO_FEB2025_v0_4lep_mc_346511.aMcAtNloPythia8EvtGen_tWH125_ZZ4l.4lep.root"
+    }
+  ],
+  "events": 406332,
+  "features_sha256": "54fa8e1b6e8b15cbd3c14c9fb962ae281e6baf8ed13eb9f54f6600af0af37858",
+  "preselection_mass_sha256": "3c24ef17d83328f73815f715eaa59ca2b6d47b068ef126471dccce0eceed4f04",
+  "environment": {
+    "python": "3.12.0",
+    "platform": "macOS-14.1.1-arm64-arm-64bit",
+    "packages": {
+      "higgs-analysis-lab": "0.1.0",
+      "numpy": "2.5.2",
+      "pandas": "2.3.3",
+      "matplotlib": "3.11.1",
+      "scikit-learn": "1.9.0",
+      "uproot": "5.7.6",
+      "awkward": "2.13.0",
+      "vector": "1.8.1",
+      "atlasopenmagic": "1.10.0"
+    },
+    "created_utc": "2026-09-30T07:17:05.726004+00:00"
+  },
+  "energy_unit": "GeV",
+  "event_id_note": "Sequential prepared-row identifier, not a detector event number",
+  "group_column": "source_id",
+  "group_note": "ROOT source basename; all events from one source are kept in the same CV fold"
+}

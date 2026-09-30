@@ -26,6 +26,15 @@ from higgs_lab.comparison import (compare_prediction_frames,
                                   compare_selection_strategies,
                                   scan_signal_efficiencies)
 from higgs_lab.features import FEATURE_KEYS
+from higgs_lab.shape_likelihood import (MassShapeLikelihood, TemplateCategory,
+                                        build_templates,
+                                        compare_mass_shape_models)
+from higgs_lab.mass_shape_validation import validate_mass_shapes
+from higgs_lab.robust import (ROBUST_FEATURES, effective_events,
+                              validate_robust_models)
+from higgs_lab.primary_inference import (fixed_signal_efficiency_thresholds,
+                                         run_primary_inference)
+from higgs_lab.information_gain import _score_categories
 
 ROOT = Path(__file__).resolve().parents[1]
 HAS_ROOT = all(importlib.util.find_spec(x) is not None for x in ['awkward','vector','uproot'])
@@ -91,6 +100,15 @@ class CoreTests(unittest.TestCase):
             path=Path(d)/'bad.toml'; path.write_text('[data]\nluminositty_fb = 36.6\n')
             with self.assertRaises(ValueError): load_config(path)
 
+    def test_atlas_selection_accepts_both_four_lepton_skims(self):
+        for skim in ("4lep", "exactly4lep"):
+            config = replace(
+                Config(),
+                data=replace(Config().data, skim=skim),
+                selection=replace(Config().selection, mode="atlas_2017_fiducial"),
+            )
+            self.assertEqual(config.validate().data.skim, skim)
+
     def test_yield_window_boundaries_and_sumw2(self):
         self.assertEqual(weighted_yield([109,110,134.9,135],[9,3,4,9],(110,135)),(7.,5.))
 
@@ -111,6 +129,196 @@ class CoreTests(unittest.TestCase):
         self.assertEqual(profile_likelihood_discovery(
             8, 10, 2)["profile_Z"], 0.)
         self.assertGreater(expected_profile_likelihood(5, 10, 2), 0.)
+
+    def test_mass_shape_profile_likelihood(self):
+        category = TemplateCategory(
+            "inclusive", np.array([11., 20., 10.]),
+            np.array([0., 8., 0.]), np.array([10., 10., 10.]),
+            np.array([1., 1., 1.]))
+        likelihood = MassShapeLikelihood([category], {"test": .05})
+        observed = likelihood.discovery([category.observed])
+        expected = likelihood.expected()
+        self.assertGreater(observed["Z"], 0.)
+        self.assertGreater(expected["Z"], 0.)
+        self.assertGreater(observed["mu_hat"], 0.)
+        interval68 = likelihood.profile_mu_interval([category.observed], 1.)
+        interval95 = likelihood.profile_mu_interval([category.observed], 3.841)
+        self.assertLessEqual(interval68["low"], observed["mu_hat"])
+        self.assertGreaterEqual(interval68["high"], observed["mu_hat"])
+        self.assertLessEqual(interval95["low"], interval68["low"])
+        self.assertGreaterEqual(interval95["high"], interval68["high"])
+        background_only = likelihood.discovery([category.background])
+        self.assertAlmostEqual(background_only["Z"], 0., places=5)
+        statistical = likelihood.statistical_z_ensemble(20, seed=7)
+        self.assertGreaterEqual(statistical["expected"]["sigma"], 0.)
+        self.assertGreaterEqual(statistical["observed"]["sigma"], 0.)
+
+    def test_mass_shape_templates_keep_pass_and_fail(self):
+        frame, _ = fixture()
+        frame["score"] = np.resize([.2, .8], len(frame))
+        frame["score_kind"] = np.where(
+            frame.role == "data", "fold_assigned_calibrated",
+            "out_of_fold_calibrated")
+        edges = np.linspace(105, 140, 8)
+        categories = build_templates(frame, edges, threshold=.5)
+        self.assertEqual({x.name for x in categories}, {"score_pass", "score_fail"})
+        self.assertEqual(sum(x.observed.sum() for x in categories), 8)
+        self.assertAlmostEqual(sum(x.signal.sum() for x in categories), 4.)
+
+    def test_mass_shape_workflow_writes_separate_outputs(self):
+        frame, _ = fixture()
+        frame["score"] = np.resize([.2, .8], len(frame))
+        frame["score_kind"] = np.where(
+            frame.role == "data", "fold_assigned_calibrated",
+            "out_of_fold_calibrated")
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            predictions = base/"predictions.csv"
+            frame.to_csv(predictions, index=False)
+            output = compare_mass_shape_models(
+                {"Test": predictions}, {"Test": .5}, base/"shape",
+                fit_range=(105., 140.), bin_width=5., toys=0)
+            summary = pd.read_csv(output/"mass_shape_significance.csv")
+            self.assertEqual(set(summary.model), {"No ML", "Test"})
+            self.assertTrue(np.isfinite(summary[[
+                "observed_Z", "expected_Z", "observed_p_value",
+                "expected_p_value"]]).all().all())
+            self.assertGreater((output/"mass_shape_significance.png").stat().st_size, 0)
+            self.assertGreater(
+                (output/"expected_mc_significance_forest.png").stat().st_size, 0)
+            self.assertGreater(
+                (output/"observed_mc_background_significance_forest.png").stat().st_size, 0)
+            self.assertGreater(
+                (output/"observed_signal_strength_forest.png").stat().st_size, 0)
+
+    def test_mass_shape_validation_writes_all_eight_diagnostics(self):
+        frame, _ = fixture()
+        frame["score"] = np.where(
+            frame.label == 1, np.resize([.45, .8, .9], len(frame)),
+            np.where(frame.label == 0,
+                     np.resize([.1, .3, .7], len(frame)),
+                     np.resize([.2, .6, .85], len(frame))))
+        frame["score_kind"] = np.where(
+            frame.role == "data", "fold_assigned_calibrated",
+            "out_of_fold_calibrated")
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            predictions = base/"predictions.csv"
+            frame.to_csv(predictions, index=False)
+            output = validate_mass_shapes(
+                {"Test": predictions}, {"Test": .5}, base/"validation",
+                fit_range=(105., 140.), signal_window=(118., 130.),
+                sidebands=(105., 118., 130., 140.), bin_width=5.,
+                gof_toys=20, seed=7)
+            expected = {
+                "test_prefit_residuals.csv", "test_prefit_residuals.png",
+                "test_sideband_score_validation.png",
+                "test_background_components.png",
+                "goodness_of_fit_summary.csv",
+                "sideband_pass_fail_closure.csv",
+                "sideband_pass_fail_closure.png",
+                "binning_stability.csv", "binning_stability.png",
+                "likelihood_ablation.csv", "likelihood_ablation.png",
+                "validation_method.json",
+            }
+            self.assertTrue(expected.issubset({path.name for path in output.iterdir()}))
+            method = json.loads((output/"validation_method.json").read_text())
+            self.assertEqual(method["signal_window"], [118.0, 130.0])
+            closure = pd.read_csv(output/"sideband_pass_fail_closure.csv")
+            summary = closure[closure.source.eq("closure")]
+            self.assertEqual(set(summary.sideband_region),
+                             {"combined", "lower", "upper"})
+
+    def test_robust_validation_is_blinded_and_may_refuse_working_point(self):
+        frame, _ = fixture()
+        for index, feature in enumerate(ROBUST_FEATURES):
+            frame[feature] = np.sin(np.arange(len(frame))*.07+index)
+        frame["score"] = np.where(
+            frame.label == 1, np.resize([.4, .8, .95], len(frame)),
+            np.where(frame.label == 0, np.resize([.1, .3, .7], len(frame)),
+                     np.resize([.2, .5, .85], len(frame))))
+        frame["raw_score"] = frame.score
+        frame["fold"] = np.arange(len(frame)) % 4
+        frame["score_kind"] = np.where(
+            frame.role == "data", "fold_assigned_calibrated",
+            "out_of_fold_calibrated")
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory); path = base/"predictions.csv"
+            frame.to_csv(path, index=False)
+            output = validate_robust_models(
+                {"Test": path}, base/"robust", efficiencies=(.7, .8),
+                minimum_background_neff=1e9)
+            choices = pd.read_csv(output/"chosen_operating_points.csv")
+            self.assertTrue(choices.status.str.startswith("no operating").all())
+            method = json.loads((output/"robust_method.json").read_text())
+            self.assertFalse(method["observed_signal_region_used"])
+            self.assertEqual(method["features"], list(ROBUST_FEATURES))
+            self.assertGreater((output/"robust_operating_point_scan.png").stat().st_size, 0)
+
+    def test_robust_configs_share_mass_decorrelated_features(self):
+        for model in ("xgboost", "lightgbm", "random_forest", "mlp"):
+            config = load_config(ROOT/f"configs/robust_{model}.toml")
+            self.assertEqual(config.training.model, model)
+            self.assertEqual(tuple(config.training.features), ROBUST_FEATURES)
+            self.assertEqual(config.data.skim, "4lep")
+            self.assertEqual(config.data.luminosity_fb, 36.1)
+            self.assertEqual(config.data.weight_mode, "legacy_absolute")
+            self.assertEqual(config.selection.mode, "atlas_2017_fiducial")
+            self.assertTrue(config.training.mass_window_only)
+            self.assertEqual(tuple(config.statistics.mass_window_gev),
+                             (115., 130.))
+
+    def test_effective_events_detects_dominant_weight(self):
+        self.assertAlmostEqual(effective_events([1., 1., 1.]), 3.)
+        self.assertLess(effective_events([100., 1., 1.]), 1.1)
+
+    def test_primary_inference_uses_pass_only_in_fixed_mass_window(self):
+        frame, _ = fixture()
+        frame["score"] = np.where(
+            frame.label == 1, np.resize([.4, .8, .9], len(frame)),
+            np.where(frame.label == 0, np.resize([.1, .3, .7], len(frame)),
+                     np.resize([.2, .6, .85], len(frame))))
+        frame["raw_score"] = frame.score
+        frame["fold"] = np.arange(len(frame)) % 4
+        frame["score_kind"] = np.where(
+            frame.role == "data", "fold_assigned_calibrated",
+            "out_of_fold_calibrated")
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory); predictions = base/"predictions.csv"
+            frame.to_csv(predictions, index=False)
+            output = run_primary_inference(
+                {"Test": predictions}, {"Test": .5}, base/"primary",
+                fit_range=(115., 130.), bin_width=5.,
+                background_systematic=.30, statistical_repeats=20)
+            summary = pd.read_csv(output/"primary_score_pass_inference.csv")
+            selected = summary[summary.model.eq("Test")].iloc[0]
+            expected_pass = frame[(frame.role == "data") & (frame.score > .5) &
+                                  (frame.mass >= 115) & (frame.mass < 130)]
+            self.assertEqual(selected.observed_events, len(expected_pass))
+            method = json.loads((output/"primary_inference_method.json").read_text())
+            self.assertEqual(method["primary_category"], "score_pass only")
+            self.assertEqual(method["score_fail_category"],
+                             "excluded from primary inference")
+            self.assertEqual(method["fit_range_gev"], [115., 130.])
+            self.assertEqual(method["normalization_uncertainties"],
+                             {"background_systematic": .30})
+            self.assertTrue((output/"primary_operating_points.csv").is_file())
+
+    def test_model_specific_signal_efficiency_thresholds_use_oof_mc(self):
+        frame, _ = fixture()
+        frame["score"] = np.linspace(0., 1., len(frame))
+        frame["score_kind"] = np.where(
+            frame.role.eq("data"), "fold_assigned_calibrated",
+            "out_of_fold_calibrated")
+        frame["mass"] = 124.
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/"predictions.csv"
+            frame.to_csv(path, index=False)
+            threshold = fixed_signal_efficiency_thresholds(
+                {"Test": path}, .8)["Test"]
+            signal = frame[frame.role.eq("signal")]
+            achieved = signal.loc[signal.score > threshold, "weight"].sum()/signal.weight.sum()
+            self.assertAlmostEqual(achieved, .8, delta=.03)
 
     def test_reconstruction_body_preserved(self):
         source=ast.parse((ROOT/'reference/higgs_analysis_original.py').read_text())
@@ -283,8 +491,9 @@ class CoreTests(unittest.TestCase):
 
     def test_signal_efficiency_scan_is_oof_mc_only(self):
         frame, _ = fixture()
-        frame["score"] = np.where(frame.label == 1, .8,
-                                  np.where(frame.label == 0, .2, .99))
+        frame["score"] = .99
+        frame.loc[frame.label == 1, "score"] = np.linspace(.45, .95, 40)
+        frame.loc[frame.label == 0, "score"] = np.linspace(.05, .55, 40)
         frame["score_kind"] = np.where(
             frame.role == "data", "fold_assigned_calibrated",
             "out_of_fold_calibrated")
@@ -362,6 +571,46 @@ class RootTests(unittest.TestCase):
         events=ak.Array(fields)
         np.testing.assert_allclose(calculate_weights(events,1),[1,2])
         np.testing.assert_allclose(calculate_weights(events,1,'signed'),[-1,2])
+
+    def test_normalization_file_audit_detects_absolute_weight_inflation(self):
+        import awkward as ak
+        import uproot
+        from higgs_lab.normalization import _audit_file
+        from higgs_lab.selection import WEIGHT_BRANCHES
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "fixture_mc_123456.test.root"
+            fields = {key: np.ones(3) for key in WEIGHT_BRANCHES}
+            fields["mcWeight"] = np.array([1., -1., 2.])
+            fields["xsec"] = np.full(3, 2.)
+            fields["filteff"] = np.full(3, .5)
+            fields["kfac"] = np.full(3, 1.2)
+            fields["sum_of_weights"] = np.full(3, 10.)
+            with uproot.recreate(path) as root_file:
+                root_file["analysis"] = ak.Array(fields)
+            metadata = {
+                "cross_section_pb": 2., "genFiltEff": .5,
+                "kFactor": 1.2, "sumOfWeights": 10.,
+            }
+            row = _audit_file(path, "test", "background", 1., metadata)
+            self.assertTrue(row["catalogue_match"])
+            self.assertAlmostEqual(row["negative_mcweight_fraction"], 1/3)
+            self.assertAlmostEqual(row["absolute_to_signed_yield_ratio"], 2.)
+
+    def test_score_categories_partition_all_events(self):
+        rows = []
+        for role in ("signal", "background", "data"):
+            for score in (.1, .3, .55, .7, .9):
+                for mass in (107.5, 112.5, 117.5, 122.5, 127.5, 132.5, 137.5):
+                    rows.append({"role": role, "score": score, "mass": mass,
+                                 "weight": 1.})
+        frame = pd.DataFrame(rows)
+        categories = _score_categories(
+            frame, np.arange(105., 145., 5.), [0., .2, .5, .8, 1.], "score")
+        self.assertEqual(len(categories), 4)
+        self.assertEqual(sum(item.observed.sum() for item in categories), 35.)
+        self.assertEqual(sum(item.signal.sum() for item in categories), 35.)
+        self.assertEqual(sum(item.background.sum() for item in categories), 35.)
+        self.assertTrue(all(np.all(item.background > 0) for item in categories))
 
     def test_prepare_to_run_with_local_root_samples(self):
         import awkward as ak
